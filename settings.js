@@ -31,9 +31,9 @@ function get() {
 function set(key, value) {
   if (key.startsWith('desk.')) {
     const k = key.slice(5), d = read(DESK); delete d.__error;
-    if (!((k === 'notify' || k === 'tips') && bool(value)) && !(k === 'fontSize' && Number.isInteger(value) && value >= 10 && value <= 22) && !(k === 'quitSessions' && (value === 'ask' || value === 'keep')))
+    if (!((k === 'notify' || k === 'tips') && bool(value)) && !(k === 'fontSize' && Number.isInteger(value) && value >= 10 && value <= 22) && !(k === 'quitSessions' && (value === 'ask' || value === 'keep')) && !(k === 'phoneAlerts' && bool(value)))
       throw new Error('bad app setting');
-    d[k] = value; fs.writeFileSync(DESK, JSON.stringify(d, null, 2)); return;
+    d[k] = value; if (k === 'phoneAlerts' && value && !d.ntfyTopic) d.ntfyTopic = 'ccdesk-' + require('crypto').randomBytes(16).toString('hex'); fs.writeFileSync(DESK, JSON.stringify(d, null, 2)); return;
   }
   const isPlugin = key.startsWith('enabledPlugins.');
   if (!(isPlugin ? bool(value) : ALLOWED[key] && ALLOWED[key](value))) throw new Error('not allowed: ' + key);

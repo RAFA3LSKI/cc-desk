@@ -205,8 +205,8 @@ async function run() {
   await flow('18 notifications toggles persist across reopen', async () => {
     await R(`openSettings('notif')`); await sleep(300);
     const a = await R(`[...document.querySelectorAll('#setPage .sw')].map(e => e.dataset.k + ':' + e.classList.contains('on'))`);
-    const want = { 'desk.notify': get('desk.notify'), inputNeededNotifEnabled: !!get('inputNeededNotifEnabled'), agentPushNotifEnabled: !!get('agentPushNotifEnabled') };
-    ok(a.length === 3 && a.every(x => { const [k, v] = x.split(':'); return String(want[k]) === v; }), `switch state ${a} vs file ${JSON.stringify(want)}`);
+    const want = { 'desk.notify': get('desk.notify'), 'desk.phoneAlerts': !!get('desk.phoneAlerts'), inputNeededNotifEnabled: !!get('inputNeededNotifEnabled'), agentPushNotifEnabled: !!get('agentPushNotifEnabled') };
+    ok(a.length === 4 && a.every(x => { const [k, v] = x.split(':'); return String(want[k]) === v; }), `switch state ${a} vs file ${JSON.stringify(want)}`);
     ok(await R(`deskPrefs.notify`) === want['desk.notify'], 'deskPrefs.notify not applied');
   });
   await flow('19 update banner shows in tip bar', async () => {
@@ -260,6 +260,34 @@ async function run() {
     ok(await R(`$('setBody').scrollHeight <= $('setBody').clientHeight + 1`), 'models tab needs scrolling');
     const before = await R(`US.at`); await R(`US.at = 0`); await sleep(5500); ok(await R(`US.at`) >= before, 'page did not refresh itself');
     await R(`$('setClose').click()`); await sleep(100); ok(!(await vis('set')), 'Usage page did not close');
+  });
+  await flow('28 split view: layouts, focus, divider, closing', async () => {
+    await R(`$('setClose').click()`); while (await R(`Object.keys(tabs).length`) < 3) { await R(`$('new').click()`); await sleep(300); }
+    const L = async l => { await R(`document.querySelector('#layouts [data-l="${l}"]').click()`); await sleep(200); };
+    const rects = () => R(`[...document.querySelectorAll('.term')].filter(e => getComputedStyle(e).visibility === 'visible').map(e => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; })`);
+    const apart = (a, b) => a.r <= b.l + 1 || b.r <= a.l + 1 || a.b <= b.t + 1 || b.b <= a.t + 1;
+    await L('cols2'); let r = await rects(); ok(r.length === 2 && apart(r[0], r[1]) && Math.abs(r[0].t - r[1].t) < 2 && r[0].w > 100, 'side by side ' + JSON.stringify(r));
+    await L('rows2'); r = await rects(); ok(r.length === 2 && apart(r[0], r[1]) && Math.abs(r[0].l - r[1].l) < 2 && r[0].h > 50, 'top and bottom ' + JSON.stringify(r));
+    await L('cols3'); r = await rects(); ok(r.length === 3 && apart(r[0], r[1]) && apart(r[1], r[2]) && Math.abs(r[0].t - r[2].t) < 2, 'three across ' + JSON.stringify(r));
+    await L('top1'); r = await rects(); ok(r.length === 3, 'top1 count ' + r.length); { const s = [...r].sort((a, b) => a.t - b.t); ok(s[0].w > s[1].w * 1.5 && Math.abs(s[1].t - s[2].t) < 2 && apart(s[1], s[2]) && apart(s[0], s[1]), 'one above two ' + JSON.stringify(s)); }
+    await L('bottom1'); r = await rects(); ok(r.length === 3, 'bottom1 count ' + r.length); { const s = [...r].sort((a, b) => b.t - a.t); ok(s[0].w > s[1].w * 1.5 && Math.abs(s[1].t - s[2].t) < 2 && apart(s[1], s[2]), 'one below two ' + JSON.stringify(s)); }
+    ok(await R(`document.querySelectorAll('.paneHead').length`) === 3, 'each pane has a name strip');
+    const fitted = await R(`panes.every(k => { const t = tabs[k], d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; })`); ok(fitted, 'a pane terminal is not fitted to its pane');
+    await L('cols2'); const keys = await R(`Object.keys(tabs)`), out = await R(`Object.keys(tabs).find(k => !panes.includes(k))`), kept = await R(`panes.find(k => k !== active)`);
+    await R(`show(${JSON.stringify(out)})`); await sleep(150); ok(await R(`panes.includes(${JSON.stringify(out)}) && panes.includes(${JSON.stringify(kept)}) && active === ${JSON.stringify(out)}`), 'opening a session did not replace only the focused pane');
+    await R(`tabs[${JSON.stringify(kept)}].el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`); await sleep(100); ok(await R(`active`) === kept, 'clicking a pane did not focus it');
+    const w0 = (await rects())[0].w; await R(`(() => { const d = document.querySelector('.divider'), b = $('terms').getBoundingClientRect(); d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: b.left + b.width / 2 })); window.dispatchEvent(new MouseEvent('mousemove', { clientX: b.left + b.width * 0.3 })); window.dispatchEvent(new MouseEvent('mouseup', {})); })()`); await sleep(200);
+    const w1 = (await rects())[0].w; ok(Math.abs(w1 - w0) > 40, `divider drag ${w0} -> ${w1}`);
+    const n0 = await R(`Object.keys(tabs).length`), victim = await R(`panes[0]`); await R(`closeTab(${JSON.stringify(victim)})`); await sleep(300); ok(await R(`Object.keys(tabs).length`) === n0 - 1 && !(await R(`panes.includes(${JSON.stringify(victim)})`)) && (await rects()).length === 2, 'closing a pane should keep the split filled');
+    await L('one'); r = await rects(); ok(r.length === 1 && !(await R(`document.querySelector('.paneHead')`)), 'back to one');
+  });
+  await flow('29 phone alerts setting: makes a private channel, shows setup, off hides it', async () => {
+    await R(`ipc.invoke('setSetting', 'desk.phoneAlerts', false)`); await sleep(100); // flow 15 toggles every switch
+    await R(`openSettings('notif')`); await sleep(300); ok(!(await R(`!!$('phoneTest')`)), 'setup visible while off');
+    await R(`document.querySelector('.sw[data-k="desk.phoneAlerts"]').click()`); await sleep(500);
+    const t = rj(DESKF).ntfyTopic; ok(rj(DESKF).phoneAlerts === true && /^ccdesk-[0-9a-f]{32}$/.test(t || ''), 'topic ' + t); ok((await R(`$('setPage').textContent`)).includes(t), 'channel name not shown');
+    await R(`document.querySelector('.sw[data-k="desk.phoneAlerts"]').click()`); await sleep(500); ok(!(await R(`!!$('phoneTest')`)) && rj(DESKF).ntfyTopic === t, 'off should hide setup and keep the channel');
+    await R(`$('setClose').click()`);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');

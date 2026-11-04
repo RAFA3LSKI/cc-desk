@@ -24,6 +24,7 @@ if (!process.versions.electron) {
   phase('close-tab', { WANT_PID: String(pid) });
   phase('stop');  const stopped = JSON.parse(fs.readFileSync(F, 'utf8')).pid; check(!alive(stopped), 'Stop them ends the session');
   phase('idle', { DESK_IDLE_MS: '1500', DESK_IDLE_TICK: '300', DESK_PTYD_SOCK: path.join(H, 'i.sock') });
+  phase('phone', { DESK_NTFY_URL: 'http://127.0.0.1:47917', DESK_PHONE_AFTER: '800', DESK_PHONE_TICK: '150', DESK_PTYD_SOCK: path.join(H, 'p.sock') });
   phase('killed-helper');
   for (const p of helperProcs()) try { process.kill(+p); } catch {}
   fs.rmSync(H, { recursive: true, force: true });
@@ -44,6 +45,19 @@ app.whenReady().then(async () => {
     const a = await open('busy'), b = await open('idle'); fs.writeFileSync(path.join(os.homedir(), '.claude/sessions', a + '.json'), JSON.stringify({ status: 'busy' })); await sleep(3000);
     ok(alive(a), 'a busy session is never stopped for being idle'); ok(!alive(b), 'an idle session stops after the time limit');
     fs.unlinkSync(path.join(os.homedir(), '.claude/sessions', a + '.json')); await sleep(2000); ok(!alive(a), 'the same session stops once it is no longer busy'); app.exit(0); return; }
+  if (P === 'phone') { // app closed: only the helper is running. Only "waiting" past the limit may ever alert.
+    const posts = []; require('http').createServer((q, r) => { let b = ''; q.on('data', d => b += d); q.on('end', () => { posts.push({ url: q.url, title: q.headers.title, b }); r.end('ok'); }); }).listen(47917);
+    const statusF = pid => path.join(os.homedir(), '.claude/sessions', pid + '.json'), st = (pid, s) => fs.writeFileSync(statusF(pid), JSON.stringify({ status: s }));
+    fs.writeFileSync(prefs, JSON.stringify({ phoneAlerts: true, ntfyTopic: 'ccdesk-test' }));
+    const c = require('./ptyd').client(() => {}), pid = await c.open({ key: 'p', shell: process.env.SHELL, args: [], cols: 80, rows: 24, cwd: os.homedir(), env: process.env, meta: { title: 'Fixture title' } });
+    st(pid, 'busy'); await sleep(1300); ok(posts.length === 0, 'busy never alerts the phone');
+    st(pid, 'idle'); await sleep(1300); ok(posts.length === 0, 'idle or finished never alerts the phone');
+    st(pid, 'waiting'); await sleep(400); ok(posts.length === 0, 'no alert before the wait limit');
+    await sleep(1000); ok(posts.length === 1 && posts[0].url === '/ccdesk-test' && posts[0].title === 'Claude needs you' && posts[0].b === 'Fixture title', 'alert after the wait limit ' + JSON.stringify(posts));
+    await sleep(1200); ok(posts.length === 1, 'only one alert per wait');
+    st(pid, 'busy'); await sleep(400); st(pid, 'waiting'); await sleep(1400); ok(posts.length === 2, 'a new wait can alert again');
+    st(pid, 'busy'); await sleep(300); fs.writeFileSync(prefs, JSON.stringify({ phoneAlerts: false, ntfyTopic: 'ccdesk-test' })); st(pid, 'waiting'); await sleep(1400); ok(posts.length === 2, 'phone alerts off sends nothing');
+    fs.unlinkSync(statusF(pid)); c.kill('p'); await sleep(200); app.exit(0); return; }
   require('./main.js'); await sleep(1800);
   const win = BrowserWindow.getAllWindows()[0], R = s => win.webContents.executeJavaScript(s);
   const text = () => R(`(() => { const t = Object.values(tabs)[0]; if (!t) return ''; const b = t.term.buffer.active; let s = ''; for (let i = 0; i < b.length; i++) s += b.getLine(i).translateToString(true) + '\\n'; return s; })()`);

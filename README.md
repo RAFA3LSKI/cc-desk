@@ -14,6 +14,8 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 - **Mac notifications** when a session finishes or needs you; click to jump there
 - **Settings window** (⌘,) for model, effort, permissions, theme, notifications, plugins, connections (`claude mcp list`)
 - **Sessions that survive quitting:** a small background helper holds them, so quit or update the app and they keep working, then reconnect when you reopen it. You choose in Settings whether quitting asks first. Sessions untouched for 24 hours stop on their own; their chats stay saved.
+- **Split view:** see up to 3 sessions at once: side by side, stacked, or two beside each other with one across the top or bottom.
+- **Phone alerts (optional):** when Claude has waited over 90 seconds for an answer or permission, even with the app closed, using the free ntfy app.
 - **Usage page** in Settings: estimated cost, input, output and cached tokens by session, day, hour and model.
 - **Per-session usage** (turns and tokens), a ⟲ Rewind button, drag files onto a session, an account menu
 - **Updates in the app**: an "Update available" line shows up when there's a new version
@@ -35,7 +37,7 @@ Everything stays on your Mac. CC Desk sends nothing anywhere: no analytics, no s
 - a cache of token counts for the Usage page, in `~/.claude-desk-usage.json`,
 - the background helper's socket and log, `~/.claude-desk-ptyd.sock` and `.log`.
 
-The only network traffic is `git fetch` against this repo, to check for updates. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo.
+The only network traffic is `git fetch` against this repo, to check for updates, and, only if you turn on phone alerts, a short message ("Claude needs you" plus the session name) sent through the public [ntfy.sh](https://ntfy.sh) server to your private random channel. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo.
 
 ## How it works
 Electron + [xterm.js](https://xtermjs.org) + [node-pty](https://github.com/microsoft/node-pty). `sessions.js` reads the session files, `settings.js` edits a whitelist of settings, `main.js` runs `claude` in a pseudo-terminal, `index.html` is the UI. Live status comes from the `~/.claude/sessions/<pid>.json` files Claude Code writes (an approach borrowed from [Nimbalyst](https://github.com/nimbalyst/nimbalyst)).

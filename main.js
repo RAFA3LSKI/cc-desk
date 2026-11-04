@@ -86,6 +86,7 @@ ipcMain.handle('doUpdate', async () => {
 ipcMain.handle('mcp', () => new Promise(res => require('child_process').execFile(process.env.SHELL || '/bin/zsh', ['-ilc', 'unset CLAUDE_CODE_OAUTH_TOKEN; claude mcp list'],
   { cwd: S.HOME, timeout: 60000 }, (err, out) => res((out || '').split('\n').map(l => l.match(/^(.+?): .* - (.+)$/)).filter(Boolean)
     .map(m => ({ name: m[1].replace(/^claude\.ai /, ''), state: m[2].trim() }))))));
+ipcMain.handle('phoneTest', async () => { const t = ST.get().desk.ntfyTopic; if (!t) throw new Error('turn phone alerts on first'); await ptyd.ntfy(t, 'Claude needs you', 'Test from CC Desk. Phone alerts are working.'); });
 ipcMain.handle('setSetting', (e, k, v) => ST.set(k, v));
 ipcMain.handle('pin', (e, id) => S.togglePin(id));
 ipcMain.on('focus', () => { win.show(); win.focus(); });

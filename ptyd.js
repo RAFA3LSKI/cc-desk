@@ -1,11 +1,21 @@
 // Background helper: holds the terminal sessions so they outlive the CC Desk window. Quit the app and they keep working;
 // reopen it and it reconnects. Runs on its own under Electron's Node (ELECTRON_RUN_AS_NODE), so node-pty's build matches.
 // Only reachable through a socket only this user can open. Newline-delimited JSON both ways.
-const net = require('net'), fs = require('fs'), path = require('path'), os = require('os'), cp = require('child_process');
+const net = require('net'), fs = require('fs'), path = require('path'), os = require('os'), cp = require('child_process'), http = require('http'), https = require('https');
 const HOME = os.homedir();
 const SOCK = process.env.DESK_PTYD_SOCK || path.join(HOME, '.claude-desk-ptyd.sock');
 const LOG = SOCK.replace(/\.sock$/, '') + '.log';
 const PROTO = 1;
+
+// Phone alert through ntfy (free app, no account). Anyone who knows the long random topic could read these, so they carry only a short status and the session name.
+function ntfy(topic, title, body) {
+  const url = new URL(encodeURIComponent(topic), (process.env.DESK_NTFY_URL || 'https://ntfy.sh') + '/');
+  return new Promise((res, rej) => {
+    const r = (url.protocol === 'https:' ? https : http).request(url, { method: 'POST', timeout: 10000, headers: { Title: title, Priority: 'high', 'Content-Type': 'text/plain; charset=utf-8' } },
+      x => { x.resume(); x.statusCode < 300 ? res() : rej(new Error('ntfy answered ' + x.statusCode)); });
+    r.on('error', rej); r.on('timeout', () => r.destroy(new Error('ntfy timed out'))); r.end(body);
+  });
+}
 
 const lines = (sock, onMsg) => {
   let buf = ''; sock.setEncoding('utf8');
@@ -61,6 +71,18 @@ function server() {
     }
     if (!S.size && !clients.size && Date.now() - emptySince > 10000) bye(); // nothing to hold, go away
   }, TICK);
+  // Phone alert: once per wait, when Claude has been waiting on an answer or permission this long. Runs here so it still works with the app closed.
+  const PHONE_AFTER = +process.env.DESK_PHONE_AFTER || 90000, statusOf = pid => { try { return JSON.parse(fs.readFileSync(path.join(HOME, '.claude/sessions', pid + '.json'), 'utf8')).status; } catch { return null; } };
+  setInterval(() => {
+    let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(path.join(HOME, '.claude-desk.json'), 'utf8')); } catch {}
+    for (const [key, x] of S) {
+      if (statusOf(x.p.pid) !== 'waiting') { x.waitSince = 0; x.pinged = false; continue; }
+      x.waitSince = x.waitSince || Date.now();
+      if (x.pinged || !cfg.phoneAlerts || !cfg.ntfyTopic || Date.now() - x.waitSince < PHONE_AFTER) continue;
+      x.pinged = true; // a failed send clears this, so it retries on the next check
+      ntfy(cfg.ntfyTopic, 'Claude needs you', (x.meta && x.meta.title) || 'A session is waiting for an answer or permission').then(() => log('phone alert ' + key), e => { x.pinged = false; log('phone alert failed ' + e.message); });
+    }
+  }, +process.env.DESK_PHONE_TICK || 15000);
   const listen = () => srv.listen(SOCK, () => log('started ' + process.pid));
   srv.on('error', e => { // a dead helper leaves its socket behind; a live one means this copy isn't needed
     if (e.code !== 'EADDRINUSE') { log('listen ' + e.message); process.exit(1); }
@@ -116,4 +138,4 @@ function client(onMsg, onClose) {
 }
 
 if (require.main === module) server();
-module.exports = { client, SOCK };
+module.exports = { client, ntfy, SOCK };

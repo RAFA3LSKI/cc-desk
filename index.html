@@ -41,6 +41,12 @@
   #rewind { padding:4px 9px; font-size:12px; }
   #terms { flex:1; position:relative; }
   .term { position:absolute; inset:8px 4px 4px 12px; }
+  .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
+  .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
+  .paneEmpty { position:absolute; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:12px; }
+  .divider { position:absolute; z-index:5; background:var(--line); } .divider:hover, .divider.drag { background:var(--accent); }
+  .divider.x { width:4px; margin-left:-2px; cursor:col-resize; } .divider.y { height:4px; margin-top:-2px; cursor:row-resize; }
+  #layouts { display:flex; gap:2px; margin-left:auto; } #layouts button { padding:3px 5px; border:0; line-height:0; color:var(--dim); } #layouts button.on { background:#34332f; color:var(--text); }
   #empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:6px; }
   #tip { height:26px; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
   #tip b { color:var(--accent); font-weight:600; }
@@ -108,7 +114,7 @@
   <div id="acctRow"><button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button><button id="optBtn" title="Options" aria-label="Options">⚙︎</button></div>
 </div>
 <div id="main">
-  <div id="bar"><span id="title">CC Desk</span><span id="use"></span>
+  <div id="bar"><span id="title">CC Desk</span><span id="use"></span><div id="layouts"><button data-l="one" title="One session" aria-label="One session"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="13" rx="1"/></svg></button><button data-l="cols2" title="Side by side" aria-label="Side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="13" rx="1"/><rect x="9.5" y="0" width="8.5" height="13" rx="1"/></svg></button><button data-l="rows2" title="Top and bottom" aria-label="Top and bottom"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="cols3" title="Three side by side" aria-label="Three side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="5.3" height="13" rx="1"/><rect x="6.3" y="0" width="5.4" height="13" rx="1"/><rect x="12.7" y="0" width="5.3" height="13" rx="1"/></svg></button><button data-l="top1" title="One on top, two below" aria-label="One on top, two below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="bottom1" title="Two on top, one below" aria-label="Two on top, one below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button></div>
     <button id="rewind" title="Go back to an earlier point in this session (/rewind)" hidden>⟲ Rewind</button></div>
   <div id="terms"><div id="empty"><div style="font-size:22px">✳</div><div>Pick a session on the left, or start a new one.</div></div></div>
   <div id="tip"></div>
@@ -202,7 +208,7 @@ function notify() {
     const finished = was === 'busy' && st === 'idle', waiting = st === 'waiting';
     if (!finished && !waiting) continue;
     const key = Object.keys(tabs).find(k => tabs[k].sessionId === id);
-    if (document.hasFocus() && key && key === active) continue; // you're already looking at it
+    if (document.hasFocus() && key && panes.includes(key)) continue; // you're already looking at it
     const s = sessions.find(x => x.id === id), title = (key && tabs[key].title) || (s && s.title) || 'Claude session';
     if (deskPrefs.notify === false) continue;
     const n = new Notification(waiting ? 'Needs you' : 'Finished', { body: title, silent: false });
@@ -226,6 +232,7 @@ function makeTab(key, sessionId, cwd, title) {
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
     macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
+  el.addEventListener('mousedown', () => { if (active !== key) show(key); }, true);
   term.onData(d => ipc.send('write', key, d));
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
   return tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
@@ -236,13 +243,55 @@ async function restoreTabs() {
   const items = await ipc.invoke('running').catch(() => []); if (!items.length) return;
   await refresh();
   for (const x of items) { if (tabs[x.key]) continue; const m = x.meta || {}, t = makeTab(x.key, m.resumeId || null, m.cwd, (sessions.find(s => s.id === m.resumeId) || {}).title || m.title); t.pid = x.pid; }
-  show(Object.keys(tabs)[0]); await refreshLive();
+  try { const sv = JSON.parse(localStorage.getItem('split')); if (sv && LAYOUT_N[sv.layout]) { layout = sv.layout; ratios = sv.ratios; panes = sv.panes.filter(k => tabs[k]); } } catch {}
+  show(panes[0] || Object.keys(tabs)[0]); await refreshLive();
   for (const x of items) { const t = tabs[x.key]; if (t) { t.fit.fit(); ipc.send('attach', x.key, t.term.cols, t.term.rows); } }
 }
 
+// Split view: up to 3 sessions on screen. panes[i] = tab key or null; `active` is the pane that typing and clicks in the sidebar go to.
+let layout = 'one', panes = [], ratios = { a: 0.5, b: 0.5 };
+const LAYOUT_N = { one: 1, cols2: 2, rows2: 2, cols3: 3, top1: 3, bottom1: 3 };
+const paneRects = () => { const { a, b } = ratios; return { one: [[0, 0, 1, 1]], cols2: [[0, 0, a, 1], [a, 0, 1 - a, 1]], rows2: [[0, 0, 1, a], [0, a, 1, 1 - a]], cols3: [[0, 0, a, 1], [a, 0, b - a, 1], [b, 0, 1 - b, 1]],
+  top1: [[0, 0, 1, a], [0, a, b, 1 - a], [b, a, 1 - b, 1 - a]], bottom1: [[0, 0, b, a], [b, 0, 1 - b, a], [0, a, 1, 1 - a]] }[layout]; };
+const paneDividers = () => { const { a, b } = ratios; return { one: [], cols2: [['a', 'x', a, 0, 1]], rows2: [['a', 'y', a, 0, 1]], cols3: [['a', 'x', a, 0, 1], ['b', 'x', b, 0, 1]], top1: [['a', 'y', a, 0, 1], ['b', 'x', b, a, 1]], bottom1: [['a', 'y', a, 0, 1], ['b', 'x', b, 0, a]] }[layout]; };
+const pct = n => (n * 100).toFixed(3) + '%';
+function applyLayout() {
+  const n = LAYOUT_N[layout], rects = paneRects(), split = n > 1;
+  panes = panes.filter(k => k && tabs[k]).slice(0, n); // drop closed tabs, then fill the free panes with other open sessions
+  for (const k of Object.keys(tabs)) if (panes.length < n && !panes.includes(k)) panes.push(k);
+  document.querySelectorAll('.paneHead, .paneEmpty, .divider').forEach(x => x.remove());
+  for (const [k, t] of Object.entries(tabs)) if (!panes.includes(k)) t.el.style.visibility = 'hidden';
+  rects.forEach(([x, y, w, h], i) => {
+    const k = panes[i], head = split ? 24 : 0;
+    const place = (el, top, bottom, l, r) => Object.assign(el.style, { inset: 'auto', left: `calc(${pct(x)} + ${l}px)`, top: `calc(${pct(y)} + ${top}px)`, width: `calc(${pct(w)} - ${l + r}px)`, height: `calc(${pct(h)} - ${top + bottom}px)` });
+    if (split) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); hd.textContent = k ? tabs[k].title : 'Empty'; hd.dataset.pane = i; place(hd, 0, 0, 0, 0); hd.style.height = '24px'; if (k) hd.onclick = () => show(k); $('terms').appendChild(hd); }
+    if (k) { const t = tabs[k]; t.el.style.visibility = 'visible'; place(t.el, head + (split ? 6 : 8), 4, split ? 8 : 12, 4); t.fit.fit(); }
+    else if (split) { const em = document.createElement('div'); em.className = 'paneEmpty'; em.textContent = 'Start or click a session on the left'; place(em, head, 0, 0, 0); $('terms').appendChild(em); }
+  });
+  for (const [name, axis, pos, from, to] of paneDividers()) {
+    const d = document.createElement('div'); d.className = 'divider ' + axis; d.dataset.r = name;
+    Object.assign(d.style, axis === 'x' ? { left: pct(pos), top: pct(from), height: pct(to - from) } : { top: pct(pos), left: pct(from), width: pct(to - from) });
+    d.onmousedown = e => dragDivider(e, d, name, axis); $('terms').appendChild(d);
+  }
+  document.querySelectorAll('#layouts [data-l]').forEach(b => b.classList.toggle('on', b.dataset.l === layout));
+  try { localStorage.setItem('split', JSON.stringify({ layout, panes, ratios })); } catch {}
+}
+function dragDivider(e, d, name, axis) {
+  e.preventDefault(); d.classList.add('drag'); const box = $('terms').getBoundingClientRect();
+  const move = ev => { let v = axis === 'x' ? (ev.clientX - box.left) / box.width : (ev.clientY - box.top) / box.height;
+    const lo = layout === 'cols3' && name === 'b' ? ratios.a + 0.1 : 0.1, hi = layout === 'cols3' && name === 'a' ? ratios.b - 0.1 : 0.9;
+    ratios[name] = Math.min(hi, Math.max(lo, v)); applyLayout(); };
+  const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); if (active && tabs[active]) tabs[active].term.focus(); };
+  window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+}
+function setLayout(l) { layout = l; ratios = l === 'cols3' ? { a: 1 / 3, b: 2 / 3 } : { a: 0.5, b: 0.5 }; if (active && !panes.includes(active)) panes.unshift(active); applyLayout(); if (active && tabs[active]) tabs[active].term.focus(); }
+$('layouts').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (b) setLayout(b.dataset.l); });
+
 function show(key) {
+  // A session not on screen replaces the focused pane, or fills the first free one.
+  if (key && !panes.includes(key)) { const n = LAYOUT_N[layout]; let i = panes.indexOf(active); if (panes.length < n) i = panes.length; else if (i < 0) i = 0; panes[i] = key; }
   active = key;
-  for (const [k, t] of Object.entries(tabs)) t.el.style.visibility = k === key ? 'visible' : 'hidden';
+  applyLayout();
   $('empty').hidden = !!key;
   $('rewind').hidden = !key;
   const t = tabs[key];
@@ -253,8 +302,8 @@ function show(key) {
 
 function closeTab(key) {
   const t = tabs[key]; if (!t) return;
-  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key];
-  show(Object.keys(tabs)[0] || null); refresh();
+  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key]; panes = panes.filter(k => k !== key);
+  show(panes[0] || Object.keys(tabs)[0] || null); refresh();
 }
 
 async function loadUsage(t) {
@@ -301,7 +350,7 @@ $('extrasBtn').onclick = async () => {
     `<h4>Skills (${x.skills.length})</h4>` + x.skills.map(n => `<div class="n">${esc(n)}</div>`).join('');
   p.hidden = false;
 };
-window.addEventListener('resize', () => active && tabs[active].fit.fit());
+window.addEventListener('resize', () => applyLayout());
 let updating = false;
 ipc.on('update', (e, n) => {
   $('tip').hidden = false;
@@ -371,6 +420,9 @@ const PAGES = {
       [['low','Low'],['medium','Medium'],['high','High'],['xhigh','Extra high'],['max','Max']])),
   notif: (c, d) => `<h2>Notifications</h2><div class="sub">Pings when a session needs you or is done.</div>` +
     row('Mac notifications from this app', 'Finished + needs-you pings, click to jump to the session.', sw('desk.notify', d.notify)) +
+    `<div class="row"><div class="l">Check it works<div class="d">Sends a test to this Mac. The first one may ask for permission.</div></div><span class="lnk" id="macTest">Send test</span></div>` +
+    row('Phone alerts', 'Only when Claude has waited over 90 seconds for an answer or permission, even with the app closed. Sends the session name through the free ntfy service.', sw('desk.phoneAlerts', !!d.phoneAlerts)) +
+    (d.phoneAlerts && d.ntfyTopic ? `<div class="row"><div class="l">Set up your phone<div class="d">Install the free <b>ntfy</b> app, no account needed. Tap + and subscribe to this private channel:<br><code style="user-select:text">${esc(d.ntfyTopic)}</code></div></div><span class="lnk" id="phoneTest">Send test</span></div>` : '') +
     row('Claude Code: input needed', "Claude Code's own alert when it's waiting on you.", sw('inputNeededNotifEnabled', !!c.inputNeededNotifEnabled)) +
     row('Claude Code: agent push', 'Alerts from background agents.', sw('agentPushNotifEnabled', !!c.agentPushNotifEnabled)),
   conn: () => `<h2>Connections</h2><div class="sub">Your MCP servers and claude.ai connectors. Same list and same health check as <code>claude mcp list</code>.</div>
@@ -493,7 +545,7 @@ async function openSettings(page, keepMsg) {
 }
 async function saveSetting(k, v) {
   try { await ipc.invoke('setSetting', k, v); $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Saved ✓';
-        ST = await ipc.invoke('settings'); applyDesk(); }
+        ST = await ipc.invoke('settings'); applyDesk(); if (k === 'desk.phoneAlerts') openSettings(null, true); }
   catch (e) { $('setMsg').style.color = 'var(--wait)'; $('setMsg').textContent = 'Not saved: ' + e.message; openSettings(null, true); }
 }
 function applyDesk() {
@@ -506,6 +558,8 @@ $('setPage').addEventListener('change', e => { const k = e.target.dataset.k; if 
 $('setPage').addEventListener('click', e => {
   const u = e.target.closest('[data-u]'); if (u) return uClick(u);
   if (e.target.id === 'connRe') return loadConn();
+  if (e.target.id === 'macTest') { new Notification('CC Desk', { body: 'Mac notifications are working.' }); $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Test sent. If nothing appears, check System Settings > Notifications.'; return; }
+  if (e.target.id === 'phoneTest') { $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Sending…'; return ipc.invoke('phoneTest').then(() => { $('setMsg').textContent = 'Test sent to your channel.'; }, err => { $('setMsg').style.color = 'var(--wait)'; $('setMsg').textContent = 'Not sent: ' + err.message; }); }
   if (e.target.id === 'advCfg') { $('set').hidden = true; return runCmd('/config'); }
   const s = e.target.closest('.sw'); if (!s) return; s.classList.toggle('on'); saveSetting(s.dataset.k, s.classList.contains('on'));
 });
