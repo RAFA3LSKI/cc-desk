@@ -21,7 +21,7 @@ if (!process.versions.electron) {
       const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       const cwd = (rows.find(r => r.cwd) || {}).cwd;
       if (!cwd || !fs.existsSync(cwd) || !rows.some(r => r.type === 'user')) continue;
-      fs.mkdirSync(path.join(C, 'projects', d), { recursive: true }); fs.writeFileSync(path.join(C, 'projects', d, n), fs.readFileSync(f, 'utf8').replaceAll('"entrypoint":"sdk-cli"', '"entrypoint":"cli"')); picked.push(f); // so scripted runs count as normal chats here } }
+      fs.mkdirSync(path.join(C, 'projects', d), { recursive: true }); fs.writeFileSync(path.join(C, 'projects', d, n), fs.readFileSync(f, 'utf8').replaceAll('"entrypoint":"sdk-cli"', '"entrypoint":"cli"')); /* scripted runs count as normal chats here */ picked.push(f); } }
   // fake login shell: no real claude. "mcp" call answers a fixed list, anything else just idles like a terminal session.
   fs.writeFileSync(path.join(H, 'fakesh'), '#!/bin/sh\ncase "$*" in *mcp*) echo "claude.ai Fake: https://x - Connected";; *) exec sleep 600;; esac\n', { mode: 0o755 });
   console.log('sandbox HOME:', H, '| fixtures:', picked.length);
