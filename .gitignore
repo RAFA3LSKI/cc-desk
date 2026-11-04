@@ -3,3 +3,4 @@ CLAUDE.local.md
 icon.icns
 *.log
 .DS_Store
+.superpowers/

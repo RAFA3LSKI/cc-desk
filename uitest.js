@@ -146,6 +146,8 @@ async function run() {
     await R(`$('menuMail').click()`); ok(await vis('menu'), 'closed on inside click');
     await R(`document.body.click()`); ok(!(await vis('menu')), 'outside click did not close');
     await R(`$('acct').click()`); await R(`$('acct').click()`); ok(!(await vis('menu')), 'second click on account did not close');
+    const off = await R(`(() => { const b = $('optBtn').getBoundingClientRect(), r = document.createRange(); r.selectNodeContents($('optBtn')); const t = r.getBoundingClientRect(); return [t.left + t.width / 2 - b.left - b.width / 2, t.top + t.height / 2 - b.top - b.height / 2]; })()`); ok(Math.abs(off[0]) <= 1 && Math.abs(off[1]) <= 1, 'options icon off-centre by ' + off);
+    await R(`$('optBtn').click()`); ok(await vis('menu'), 'options button did not open menu'); await R(`$('optBtn').click()`); ok(!(await vis('menu')), 'second click on options did not close');
     await R(`$('acct').click(); document.querySelector('#menu [data-confirm]').click()`); ok(await R(`document.querySelector('#menu [data-confirm] span').textContent`) === 'Click again to log out', 'logout needs 2nd click');
     await R(`$('acct').click()`); await R(`document.body.click()`);
     await R(`$('acct').click(); document.querySelector('#menu [data-url]').click()`); ok(!(await vis('menu')), 'menu open after link'); ok(opened.length === 1 && /^https:/.test(opened[0]), 'openExternal ' + opened);
@@ -226,6 +228,36 @@ async function run() {
       const r = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[active], d = t.fit.proposeDimensions(), a = t.el.getBoundingClientRect(), b = $('terms').getBoundingClientRect();
         return { cols: t.term.cols, rows: t.term.rows, pc: d.cols, pr: d.rows, inside: a.right <= b.right + 1 && a.bottom <= b.bottom + 1, w: innerWidth }; })())`));
       ok(r.cols === r.pc && r.rows === r.pr && r.inside, `${w}x${h}: ${JSON.stringify(r)}`); }
+  });
+  await flow('27 Usage: real numbers, tabs, pills, session detail, limits', async () => {
+    const SID = '11111111-1111-4111-8111-111111111111', dir = path.join(os.homedir(), '.claude/projects/-usagefix'), now = new Date().toISOString();
+    const L = (id, model, u) => JSON.stringify({ type: 'assistant', timestamp: now, sessionId: SID, cwd: os.homedir(), message: { id, model, usage: u } });
+    fs.mkdirSync(path.join(dir, SID, 'subagents'), { recursive: true }); fs.mkdirSync(path.join(os.homedir(), '.claude/state'), { recursive: true });
+    fs.writeFileSync(path.join(dir, SID + '.jsonl'), [JSON.stringify({ type: 'custom-title', customTitle: 'Usage fixture', sessionId: SID }), JSON.stringify({ type: 'user', cwd: os.homedir(), sessionId: SID, message: { content: 'hi' } }),
+      L('msg_u1', 'claude-sonnet-5-5', { input_tokens: 1e6, output_tokens: 10 }), L('msg_u1', 'claude-sonnet-5-5', { input_tokens: 1e6, output_tokens: 1e6 })].join('\n') + '\n'); // same reply twice: $12 once
+    fs.writeFileSync(path.join(dir, SID, 'subagents', 'agent-x.jsonl'), L('msg_u2', 'claude-opus-5-5', { input_tokens: 1e6, output_tokens: 0 }) + '\n'); // agent: $4 counts toward the parent
+    const reset = Math.round(Date.now() / 1000) + 3600;
+    fs.writeFileSync(path.join(os.homedir(), '.claude/state/rate-limits.json'), JSON.stringify({ seven_day: { used_percentage: 62, resets_at: reset }, at: Date.now() }));
+    const text = () => R(`$('setPage').textContent`), click = async (u, v) => { await R(`document.querySelector('[data-u="${u}"]${v === undefined ? '' : `[data-v="${v}"]`}').click()`); await sleep(150); };
+    const shown = async sel => R(`(() => { const e = document.querySelector('${sel}'); return !!e && e.getBoundingClientRect().height > 0; })()`);
+    await R(`$('acct').click(); document.querySelector('#menu [data-usage]').click()`); await sleep(300);
+    ok(await vis('set') && await R(`document.querySelector('#setNav .nv.on').dataset.p`) === 'usage', 'menu Usage did not open the Usage page');
+    for (let i = 0; i < 80 && !(await R(`!!US.data`)); i++) await sleep(250);
+    ok(await R(`!!US.data`), 'data never loaded: ' + await text());
+    let t = await text(); ok(/This week/.test(t) && /62% used/.test(t), 'weekly bar missing: ' + t.slice(0, 200)); ok(!/5-hour window/.test(t), 'a limit the plan does not report must stay hidden');
+    ok(await shown('.uChart') && await shown('.uTiles'), 'overview chart or tiles not visible');
+    await click('tab', 'sessions'); t = await text(); ok(/Usage fixture/.test(t) && /\$16\.00/.test(t), 'session row wrong (dedupe or agent rollup): ' + t.slice(0, 300));
+    await click('session', SID); t = await text(); ok(/\$16\.00/.test(t) && /Sonnet 5\.5/.test(t) && /Opus 5\.5/.test(t), 'session detail: ' + t.slice(0, 300)); ok(await shown('.uChart'), 'session chart not visible');
+    await click('back'); ok(!/All sessions/.test(await text()), 'back did not leave the detail');
+    await click('tab', 'time'); ok(await R(`document.querySelectorAll('.uCol').length`) === 7, '7-day chart should have 7 bars');
+    await click('gran', 'hour'); ok(await R(`document.querySelectorAll('.uCol').length`) === 24, 'time-of-day chart should have 24 bars');
+    const hour = new Date().getHours(); await click('pick', hour); ok(/Usage fixture/.test(await text()), 'clicking a bar did not list its session');
+    await click('metric', 'output'); ok(await R(`document.querySelector('.uPills [data-u="metric"].on').textContent`) === 'Output', 'metric pill');
+    await click('tab', 'models'); t = await text(); ok(/Sonnet 5\.5/.test(t) && /Opus 5\.5/.test(t), 'models tab: ' + t.slice(0, 200));
+    await click('range', 'today'); ok(/Sonnet 5\.5/.test(await text()), 'today range lost today\'s usage');
+    ok(await R(`$('setBody').scrollHeight <= $('setBody').clientHeight + 1`), 'models tab needs scrolling');
+    const before = await R(`US.at`); await R(`US.at = 0`); await sleep(5500); ok(await R(`US.at`) >= before, 'page did not refresh itself');
+    await R(`$('setClose').click()`); await sleep(100); ok(!(await vis('set')), 'Usage page did not close');
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');

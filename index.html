@@ -46,7 +46,9 @@
   #tip b { color:var(--accent); font-weight:600; }
   #panel { position:fixed; left:300px; bottom:0; width:340px; max-height:70vh; overflow-y:auto; background:var(--side);
            border:1px solid var(--line); border-radius:10px 10px 0 0; padding:12px 14px; }
-  #acct { margin:0 12px 12px; display:flex; flex-direction:column; gap:1px; text-align:left; }
+  #acctRow { margin:0 12px 12px; display:flex; gap:6px; }
+  #acct { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; text-align:left; }
+  #optBtn { flex:none; width:38px; padding:0; font-size:16px; display:flex; align-items:center; justify-content:center; }
   #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #acctPlan { color:var(--dim); font-size:11px; }
   #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#2c2b28; border:1px solid var(--line);
           border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:9; }
@@ -74,6 +76,24 @@
   #setClose { position:absolute; top:14px; right:16px; border:0; font-size:16px; color:var(--dim); }
   #setMsg { color:var(--idle); font-size:12px; height:16px; margin-top:12px; }
   .lnk { color:var(--accent); cursor:pointer; }
+  .uTabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:14px; }
+  .uTabs button { border:0; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; padding:7px 12px; color:var(--dim); }
+  .uTabs button.on { color:var(--text); border-bottom-color:var(--accent); }
+  .uPills { display:flex; flex-wrap:wrap; gap:4px; margin:0 12px 10px 0; } .uBar { display:flex; flex-wrap:wrap; }
+  .uPills button { padding:3px 10px; border-radius:14px; font-size:12px; color:var(--dim); } .uPills button.on { background:#34332f; color:var(--text); }
+  .uMeter { margin-bottom:12px; } .uMeter .t { display:flex; justify-content:space-between; gap:12px; margin-bottom:4px; } .uDim { color:var(--dim); font-size:12px; }
+  .uTrack { height:8px; background:#34332f; border-radius:4px; overflow:hidden; } .uTrack span { display:block; height:100%; background:var(--accent); border-radius:4px; }
+  .uTiles { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
+  .uTile { background:#2c2b28; border-radius:8px; padding:10px; min-width:0; } .uTile b { display:block; font-size:18px; font-weight:600; }
+  .uRead { color:var(--dim); font-size:12px; height:16px; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .uChart { display:flex; align-items:stretch; height:120px; margin-top:6px; border-bottom:1px solid var(--line); }
+  .uCol { flex:1; min-width:0; padding:0 1px; border:0; border-radius:0; display:flex; align-items:flex-end; background:none; }
+  .uCol:hover { background:#2c2b28; } .uCol span { display:block; width:100%; max-width:40px; margin:0 auto; background:var(--accent); border-radius:3px 3px 0 0; }
+  .uCol.on span { background:var(--text); } .uChart.tall { height:145px; }
+  .uAxis { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; margin-top:3px; }
+  .uRow { display:flex; align-items:center; gap:12px; width:100%; padding:8px; border:0; border-radius:7px; text-align:left; }
+  .uRow:hover { background:#2c2b28; } .uRow .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .uRow .v { color:var(--dim); font-size:12px; white-space:nowrap; }
+  .uTag { color:var(--accent); font-size:11px; margin-left:6px; } .uPager { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px; }
   #panel h4 { margin:10px 0 4px; color:var(--dim); font-size:11px; text-transform:uppercase; }
   #panel div.n { padding:2px 0; }
 </style></head>
@@ -85,7 +105,7 @@
   </div>
   <div id="list"></div>
   <div id="foot"><button id="extrasBtn">Agents &amp; skills</button><button id="showEmpty">Show empty</button></div>
-  <button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button>
+  <div id="acctRow"><button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button><button id="optBtn" title="Options" aria-label="Options">⚙︎</button></div>
 </div>
 <div id="main">
   <div id="bar"><span id="title">CC Desk</span><span id="use"></span>
@@ -96,14 +116,14 @@
 <div id="panel" hidden></div>
 <div id="set" hidden><div id="setBox">
   <div id="setNav"><h3>Settings</h3>
-    <div class="nv on" data-p="general">General</div><div class="nv" data-p="model">Model</div>
+    <div class="nv on" data-p="general">General</div><div class="nv" data-p="usage">Usage</div><div class="nv" data-p="model">Model</div>
     <div class="nv" data-p="notif">Notifications</div><div class="nv" data-p="conn">Connections</div><div class="nv" data-p="plugins">Plugins</div><div class="nv" data-p="app">This app</div></div>
   <div id="setBody"><button id="setClose">✕</button><div id="setPage"></div><div id="setMsg"></div></div>
 </div></div>
 <div id="menu" hidden>
   <div class="mail" id="menuMail"></div>
   <div class="mi" data-set="1">⚙︎ <span>Settings</span><kbd>⌘,</kbd></div>
-  <div class="mi" data-cmd="/usage">◔ <span>Usage</span></div>
+  <div class="mi" data-usage="1">◔ <span>Usage</span></div>
   <div class="mi" data-url="https://docs.claude.com/en/docs/claude-code/overview">? <span>Get help</span></div>
   <div class="mi" data-cmd="/feedback">◌ <span>Send feedback</span></div>
   <hr>
@@ -307,13 +327,13 @@ function runCmd(cmd) {
 }
 const refreshAcct = () => ipc.invoke('account').then(a => { $('acctMail').textContent = a.email || 'Account'; $('acctPlan').textContent = a.plan || ''; $('menuMail').textContent = a.email || ''; });
 refreshAcct(); setInterval(refreshAcct, 3000); // picks up /login without a restart
-$('acct').onclick = e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; $('menu').querySelectorAll('.sure').forEach(x => x.classList.remove('sure')); };
+$('acct').onclick = $('optBtn').onclick = e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; $('menu').querySelectorAll('.sure').forEach(x => x.classList.remove('sure')); };
 document.addEventListener('click', e => { if (!$('menu').contains(e.target)) $('menu').hidden = true; });
 $('menu').addEventListener('click', e => {
   const mi = e.target.closest('.mi'); if (!mi) return;
   if (mi.dataset.confirm && !mi.classList.contains('sure')) { mi.classList.add('sure'); mi.querySelector('span').textContent = 'Click again to log out'; return; }
   $('menu').hidden = true;
-  if (mi.dataset.set) openSettings(); else if (mi.dataset.url) ipc.send('url', mi.dataset.url); else runCmd(mi.dataset.cmd);
+  if (mi.dataset.set) openSettings(); else if (mi.dataset.usage) openSettings('usage'); else if (mi.dataset.url) ipc.send('url', mi.dataset.url); else runCmd(mi.dataset.cmd);
   if (mi.dataset.confirm) { mi.classList.remove('sure'); mi.querySelector('span').textContent = 'Log out'; }
 });
 window.addEventListener('keydown', e => { if (e.metaKey && e.key === ',') { e.preventDefault(); e.stopPropagation(); openSettings(); } }, true);
@@ -355,10 +375,106 @@ async function loadConn() {
   $('connList').innerHTML = list.length ? list.map(x => row(esc(x.name), '', `<span style="color:${/Connected/.test(x.state) ? 'var(--idle)' : 'var(--busy)'}">${esc(x.state)}</span>`)).join('')
     : 'Could not read the list. Try "Check again".';
 }
+// Usage page. Every section sits behind a tab or pill, so nothing needs a long scroll.
+const US = { tab: 'overview', range: '7d', gran: 'day', metric: 'cost', session: null, pick: null, page: 0, data: null, err: null, at: 0, busy: false, progress: null };
+const USD = n => n >= 100 ? '$' + Math.round(n).toLocaleString('en-US') : n > 0 && n < 0.01 ? '<$0.01' : '$' + n.toFixed(2);
+const TOK = n => n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
+const dayOf = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const sinceOf = r => { const d = new Date(); d.setHours(0, 0, 0, 0); return r === 'today' ? +d : r === '7d' ? d.setDate(d.getDate() - 6) : r === '30d' ? d.setDate(d.getDate() - 29) : 0; };
+const totals = rows => rows.reduce((t, x) => { t.c += x.c; t.i += x.i; t.o += x.o; t.w += x.w; t.r += x.r; return t; }, { c: 0, i: 0, o: 0, w: 0, r: 0 });
+const allTok = t => t.i + t.o + t.w + t.r;
+const METRICS = { cost: ['$', t => t.c, USD], tokens: ['Tokens', allTok, TOK], input: ['Input', t => t.i, TOK], output: ['Output', t => t.o, TOK] };
+const groupRows = (rows, key) => { const m = new Map(); for (const x of rows) { const k = key(x); m.has(k) ? m.get(k).push(x) : m.set(k, [x]); } return m; };
+const uRows = () => { const since = sinceOf(US.range); return US.data.rows.filter(x => x.h >= since); };
+const uTitle = id => esc((US.data.titles || {})[id] || 'Session ' + String(id).slice(0, 8));
+const modelName = m => esc(m.replace(/^claude-/, '').split('-').map((p, i) => i ? p : p[0].toUpperCase() + p.slice(1)).join(' ').replace(/(\d) (\d)/, '$1.$2'));
+const uAgo = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + 's ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : s < 86400 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
+const pills = (kind, cur, list) => `<div class="uPills">${list.map(([v, l]) => `<button data-u="${kind}" data-v="${v}" class="${v === cur ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const rangePills = () => pills('range', US.range, [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days'], ['all', 'All']]);
+const tiles = t => `<div class="uTiles">${[[USD(t.c), 'Estimated cost', 'What these tokens would cost at API prices. Not what your plan charges you.'], [TOK(t.i), 'Input', 'New text sent to Claude.'], [TOK(t.o), 'Output', 'What Claude wrote back.'], [TOK(t.w + t.r), 'Cached', 'Earlier conversation re-used from cache. Most of your tokens, and much cheaper than input.']]
+  .map(([v, l, tip]) => `<div class="uTile" title="${tip}"><b>${v}</b><span class="uDim">${l}</span></div>`).join('')}</div>`;
+// entries: [{ k, label, v, read }]. The whole column is the click and hover target, so thin bars stay easy to hit.
+function uChart(entries, hint, pick, tall) {
+  const max = Math.max(...entries.map(e => e.v), 0);
+  const cols = entries.map(e => `<button class="uCol ${US.pick === e.k ? 'on' : ''}" ${pick ? `data-u="pick" data-v="${e.k}"` : 'tabindex="-1"'} data-read="${esc(e.read)}" aria-label="${esc(e.read)}"><span style="height:${max ? Math.max(e.v ? 2 : 0, e.v / max * 100) : 0}%"></span></button>`).join('');
+  const n = entries.length, labels = n > 2 ? [entries[0], entries[n >> 1], entries[n - 1]] : entries;
+  return `<div class="uRead" id="uRead">${esc(hint)}</div><div class="uChart ${tall ? 'tall' : ''}">${cols}</div><div class="uAxis">${labels.map(e => `<span>${esc(e.label)}</span>`).join('')}</div>`;
+}
+function dayEntries(rows, metric, since) {
+  const by = groupRows(rows, x => dayOf(x.h)), out = [], [, f, show] = METRICS[metric];
+  const first = since || (rows.length ? Math.min(...rows.map(x => x.h)) : Date.now()), d = new Date(first); d.setHours(0, 0, 0, 0);
+  for (; +d <= Date.now(); d.setDate(d.getDate() + 1)) { const k = dayOf(+d), t = totals(by.get(k) || []); out.push({ k, label: k.slice(5), v: f(t), read: `${k}: ${show(f(t))}` + (metric === 'cost' ? ` · ${TOK(allTok(t))} tokens` : ` · ${USD(t.c)}`) }); }
+  return out;
+}
+function hourEntries(rows, metric) {
+  const by = groupRows(rows, x => new Date(x.h).getHours()), [, f, show] = METRICS[metric], hh = h => String(h).padStart(2, '0') + ':00';
+  return Array.from({ length: 24 }, (_, h) => { const t = totals(by.get(h) || []); return { k: String(h), label: hh(h), v: f(t), read: `${hh(h)}: ${show(f(t))}` + (metric === 'cost' ? ` · ${TOK(allTok(t))} tokens` : ` · ${USD(t.c)}`) }; });
+}
+const sessionRow = (id, t, tag) => `<button class="uRow" data-u="session" data-v="${esc(id)}"><span class="n">${uTitle(id)}${tag ? `<span class="uTag">${tag}</span>` : ''}</span><span class="v">${USD(t.c)} · ${TOK(allTok(t))}</span></button>`;
+const sessionsByCost = rows => [...groupRows(rows, x => x.s)].map(([id, r]) => [id, totals(r)]).sort((a, b) => b[1].c - a[1].c);
+function limitBars() {
+  const L = US.data.limits || {}, now = Date.now() / 1000;
+  const bar = (name, l) => { if (!l || !(l.resets_at > now)) return ''; const pct = Math.round(l.used_percentage), r = new Date(l.resets_at * 1000);
+    return `<div class="uMeter"><div class="t"><span>${name}</span><span class="uDim">${pct}% used · resets ${dayOf(+r)} ${String(r.getHours()).padStart(2, '0')}:${String(r.getMinutes()).padStart(2, '0')}</span></div><div class="uTrack"><span style="width:${Math.min(pct, 100)}%"></span></div></div>`; };
+  const html = bar('This week', L.seven_day) + bar('5-hour window', L.five_hour);
+  return html ? html + `<div class="uDim" style="margin-bottom:12px">Limits as of ${uAgo(L.at)}. They update while a session is running.</div>`
+    : `<div class="uDim" style="margin-bottom:12px">Weekly and 5-hour limits appear here after Claude's next reply in any session.</div>`;
+}
+function uBody() {
+  const rows = uRows();
+  if (US.tab === 'overview') return limitBars() + rangePills() + tiles(totals(rows)) + uChart(dayEntries(rows, 'cost', US.range === 'all' ? 0 : sinceOf(US.range)), 'Estimated cost per day. Hover a bar for details.');
+  if (US.tab === 'sessions') {
+    if (US.session) {
+      const own = US.data.rows.filter(x => x.s === US.session), hs = own.map(x => x.h), byDay = own.length && Math.max(...hs) - Math.min(...hs) > 2 * 864e5, models = [...groupRows(own, x => x.m)].map(([m, r]) => [m, totals(r)]).sort((a, b) => b[1].c - a[1].c);
+      const hourly = () => { const by = groupRows(own, x => x.h), out = []; for (let h = Math.min(...hs); h <= Math.max(...hs); h += 36e5) { const t = totals(by.get(h) || []), d = new Date(h), hh = String(d.getHours()).padStart(2, '0') + ':00'; out.push({ k: String(h), label: hh, v: t.c, read: `${dayOf(h)} ${hh}: ${USD(t.c)} · ${TOK(allTok(t))} tokens` }); } return out; };
+      return `<span class="lnk" data-u="back">‹ All sessions</span><h3 style="margin:10px 0 0;font-size:15px">${uTitle(US.session)}</h3>` + tiles(totals(own)) +
+        (own.length ? uChart(byDay ? dayEntries(own, 'cost', Math.min(...hs)) : hourly(), `Estimated cost per ${byDay ? 'day' : 'hour'} in this session. Includes its agents.`) : '') +
+        `<div style="margin-top:12px">${models.map(([m, t]) => `<div class="uRow"><span class="n">${modelName(m)}</span><span class="v">${USD(t.c)} · ${TOK(allTok(t))}</span></div>`).join('')}</div>`;
+    }
+    const cur = active && tabs[active] ? tabs[active].sessionId : null, list = sessionsByCost(rows).filter(([id]) => id !== cur), PER = 8, pages = Math.max(1, Math.ceil(list.length / PER)); US.page = Math.min(US.page, pages - 1);
+    const curT = cur && totals(US.data.rows.filter(x => x.s === cur));
+    return rangePills() + (curT && allTok(curT) ? sessionRow(cur, curT, 'open now') : '') + (list.length ? list.slice(US.page * PER, (US.page + 1) * PER).map(([id, t]) => sessionRow(id, t)).join('') : '<div class="uDim">No sessions in this period.</div>') +
+      (pages > 1 ? `<div class="uPager"><button data-u="page" data-v="${US.page - 1}" ${US.page ? '' : 'disabled'}>‹</button><span class="uDim">Page ${US.page + 1} of ${pages}</span><button data-u="page" data-v="${US.page + 1}" ${US.page < pages - 1 ? '' : 'disabled'}>›</button></div>` : '');
+  }
+  if (US.tab === 'time') {
+    const entries = US.gran === 'day' ? dayEntries(rows, US.metric, US.range === 'all' ? 0 : sinceOf(US.range)) : hourEntries(rows, US.metric);
+    const picked = US.pick === null ? [] : rows.filter(x => US.gran === 'day' ? dayOf(x.h) === US.pick : String(new Date(x.h).getHours()) === US.pick);
+    const pickLabel = (entries.find(e => e.k === US.pick) || {}).read;
+    return `<div class="uBar">${rangePills()}${pills('gran', US.gran, [['day', 'By day'], ['hour', 'By time of day']])}${pills('metric', US.metric, Object.entries(METRICS).map(([k, m]) => [k, m[0]]))}</div>` +
+      uChart(entries, 'Click a bar to see which sessions used it.', true, true) +
+      (US.pick !== null ? `<div class="uDim" style="margin:12px 0 4px">${esc(pickLabel || '')}</div>` + (picked.length ? sessionsByCost(picked).slice(0, 5).map(([id, t]) => sessionRow(id, t)).join('') : '<div class="uDim">Nothing used here.</div>') : '');
+  }
+  const models = [...groupRows(rows, x => x.m)].map(([m, r]) => [m, totals(r)]).sort((a, b) => b[1].c - a[1].c), all = models.reduce((n, [, t]) => n + t.c, 0);
+  return rangePills() + (models.length ? models.map(([m, t]) => { const pct = all ? Math.round(t.c / all * 100) : 0; return `<div class="uMeter"><div class="t"><span>${modelName(m)}</span><span class="uDim">${USD(t.c)} · ${pct}% · ${TOK(t.i)} in · ${TOK(t.o)} out · ${TOK(t.w + t.r)} cached</span></div><div class="uTrack"><span style="width:${pct}%"></span></div></div>`; }).join('') : '<div class="uDim">No usage in this period.</div>') +
+    ((US.data.unpriced || []).length ? `<div class="uDim">No price known for: ${US.data.unpriced.map(esc).join(', ')}. They count as $0.</div>` : '');
+}
+function uHtml() {
+  const tabsHtml = [['overview', 'Overview'], ['sessions', 'Sessions'], ['time', 'Days & hours'], ['models', 'Models']].map(([k, l]) => `<button data-u="tab" data-v="${k}" class="${US.tab === k ? 'on' : ''}">${l.replace('&', '&amp;')}</button>`).join('');
+  const body = US.data ? uBody() : US.err ? `<div class="uDim">Couldn't read your usage: ${esc(US.err)}</div><span class="lnk" data-u="retry">Try again</span>`
+    : `<div class="uDim">Reading your session history${US.progress ? ` (${US.progress.done} of ${US.progress.total} files)` : ''}. Only the first time is slow.</div>`;
+  return `<div id="uRoot"><h2>Usage</h2><div class="sub">Dollars are estimated at API prices, not what your plan charges.${US.at ? ` <span id="uAge">Updated ${uAgo(US.at)}</span>` : ''}</div><div class="uTabs">${tabsHtml}</div>${body}</div>`;
+}
+PAGES.usage = () => uHtml();
+const uOpen = () => !$('set').hidden && setPageName === 'usage';
+function uRender() { if (!uOpen() || !$('uRoot')) return; const b = $('setBody'), y = b.scrollTop; $('uRoot').outerHTML = uHtml(); b.scrollTop = y; }
+async function uLoad() {
+  if (US.busy) return; US.busy = true;
+  try { US.data = await ipc.invoke('usageData'); US.err = null; US.at = Date.now(); } catch (e) { US.err = e.message; }
+  US.busy = false; uRender();
+}
+function uClick(el) {
+  const a = el.dataset.u, v = el.dataset.v;
+  if (a === 'tab') { US.tab = v; US.session = null; } else if (a === 'range') { US.range = v; US.pick = null; US.page = 0; } else if (a === 'gran') { US.gran = v; US.pick = null; }
+  else if (a === 'metric') US.metric = v; else if (a === 'pick') US.pick = US.pick === v ? null : v; else if (a === 'session') { US.tab = 'sessions'; US.session = v; }
+  else if (a === 'back') US.session = null; else if (a === 'page') US.page = +v; else if (a === 'retry') { US.err = null; uLoad(); }
+  uRender();
+}
+ipc.on('usageProgress', (e, p) => { US.progress = p; if (!US.data) uRender(); });
+setInterval(() => { if (!uOpen()) return; if (Date.now() - US.at >= 30000) uLoad(); if ($('uAge') && US.at) $('uAge').textContent = 'Updated ' + uAgo(US.at); }, 5000);
 async function openSettings(page, keepMsg) {
   ST = await ipc.invoke('settings'); if (page) setPageName = page;
   document.querySelectorAll('#setNav .nv').forEach(n => n.classList.toggle('on', n.dataset.p === setPageName));
-  $('setPage').innerHTML = (ST.claude.__error ? '<div style="color:var(--wait);margin-bottom:12px">Your settings.json can\'t be read (invalid JSON), so nothing here will be saved until it\'s fixed</div>' : '') + PAGES[setPageName](ST.claude, ST.desk); if (!keepMsg) $('setMsg').textContent = ''; $('set').hidden = false; if (setPageName === 'conn') loadConn();
+  $('setPage').innerHTML = (ST.claude.__error ? '<div style="color:var(--wait);margin-bottom:12px">Your settings.json can\'t be read (invalid JSON), so nothing here will be saved until it\'s fixed</div>' : '') + PAGES[setPageName](ST.claude, ST.desk); if (!keepMsg) $('setMsg').textContent = ''; $('set').hidden = false; if (setPageName === 'conn') loadConn(); if (setPageName === 'usage' && !US.busy) uLoad();
 }
 async function saveSetting(k, v) {
   try { await ipc.invoke('setSetting', k, v); $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Saved ✓';
@@ -373,10 +489,12 @@ function applyDesk() {
 $('setNav').addEventListener('click', e => { const n = e.target.closest('.nv'); if (n) openSettings(n.dataset.p); });
 $('setPage').addEventListener('change', e => { const k = e.target.dataset.k; if (k) saveSetting(k, k === 'desk.fontSize' ? +e.target.value : e.target.value); });
 $('setPage').addEventListener('click', e => {
+  const u = e.target.closest('[data-u]'); if (u) return uClick(u);
   if (e.target.id === 'connRe') return loadConn();
   if (e.target.id === 'advCfg') { $('set').hidden = true; return runCmd('/config'); }
   const s = e.target.closest('.sw'); if (!s) return; s.classList.toggle('on'); saveSetting(s.dataset.k, s.classList.contains('on'));
 });
+$('setPage').addEventListener('mouseover', e => { const c = e.target.closest('[data-read]'); if (c && $('uRead')) $('uRead').textContent = c.dataset.read; });
 $('setClose').onclick = () => $('set').hidden = true;
 $('set').addEventListener('click', e => { if (e.target.id === 'set') $('set').hidden = true; });
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('set').hidden) { $('set').hidden = true; e.stopPropagation(); } }, true);

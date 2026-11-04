@@ -9,6 +9,7 @@ const assert = require('assert'), S = require('./sessions');
   assert(!titled.some(s => s.title.startsWith('<command-name>')), 'raw /clear titles leaking through');
   const live = S.live();
   assert(Object.keys(live.byId).length > 0, 'no live session found (this check runs inside one)');
+  await require('./usage').selfcheck();
   const u = await S.usage(titled[0].file);
   assert(u.turns > 0 && u.output > 0, 'usage parsing broke');
   console.log(`OK: ${list.length} sessions, ${titled.length} titled, live: ${Object.values(live.byId).map(v => v.status).join(',')}, newest usage ${u.turns} turns`);

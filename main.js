@@ -48,6 +48,7 @@ app.on('before-quit', e => {
 ipcMain.handle('list', (e, limit) => S.list(limit));
 ipcMain.handle('live', () => S.live());
 ipcMain.handle('usage', (e, f) => S.usage(f));
+ipcMain.handle('usageData', () => require('./usage').get(p => win && !win.isDestroyed() && win.webContents.send('usageProgress', p)));
 ipcMain.handle('extras', () => S.extras());
 ipcMain.handle('rename', (e, file, id, n) => S.rename(file, id, n));
 ipcMain.handle('account', () => { try { const a = JSON.parse(require('fs').readFileSync(require('path').join(S.HOME, '.claude.json'), 'utf8')).oauthAccount || {};
