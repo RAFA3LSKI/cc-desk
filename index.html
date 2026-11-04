@@ -149,15 +149,15 @@ function render() {
   if (openKeys.length) {
     html += '<div class="grp">Open</div>';
     for (const k of openKeys) { const t = tabs[k];
-      html += `<div class="it ${k===active?'on':''}" data-key="${k}"><span class="dot ${statusOf(t.sessionId,k)}"></span>
-        <span class="t">${esc(t.title)}</span><span class="x" data-close="${k}">✕</span></div>`; }
+      html += `<div class="it ${k===active?'on':''}" data-key="${esc(k)}"><span class="dot ${statusOf(t.sessionId,k)}"></span>
+        <span class="t">${esc(t.title)}</span><span class="x" data-close="${esc(k)}">✕</span></div>`; }
   }
   const shown = sessions.filter(s => (showEmpty || !s.empty || s.pinned) &&
     (!q || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)));
-  const row = s => `<div class="it ${s.empty?'empty':''}" data-id="${s.id}" title="Double-click to rename">
+  const row = s => `<div class="it ${s.empty?'empty':''}" data-id="${esc(s.id)}" title="Double-click to rename">
       <span class="dot ${statusOf(s.id)}"></span><span class="t">${esc(s.title)}</span>
       ${s.cwd !== HOME ? `<span class="when">${esc(short(s.cwd).split('/').pop())}</span>` : ''}
-      <span class="when">${ago(s.mtime)}</span><span class="x pin ${s.pinned?'pinned':''}" data-pin="${s.id}" title="Pin">${s.pinned?'★':'☆'}</span></div>`;
+      <span class="when">${ago(s.mtime)}</span><span class="x pin ${s.pinned?'pinned':''}" data-pin="${esc(s.id)}" title="Pin">${s.pinned?'★':'☆'}</span></div>`;
   const pinned = shown.filter(s => s.pinned), rest = shown.filter(s => !s.pinned);
   if (pinned.length) html += '<div class="grp">Pinned</div>' + pinned.map(row).join('');
   if (rest.length) html += '<div class="grp">Recent</div>' + rest.map(row).join('');
@@ -196,7 +196,7 @@ function openTab(sessionId, cwd, title) {
   const key = 'k' + Date.now();
   const el = document.createElement('div'); el.className = 'term'; $('terms').appendChild(el);
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
-    macOptionIsMeta:true, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
+    macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
   term.onData(d => ipc.send('write', key, d));
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
@@ -282,7 +282,7 @@ $('terms').addEventListener('dragover', e => e.preventDefault());
 $('terms').addEventListener('drop', e => {
   e.preventDefault(); if (!active) return;
   const { webUtils } = require('electron');
-  const paths = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean);
+  const paths = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(p => p && !/[\x00-\x1f\x7f]/.test(p)); // no control chars: a newline would submit
   if (paths.length) { ipc.send('write', active, paths.map(p => "'" + p.replace(/'/g, "'\\''") + "'").join(' ') + ' '); tabs[active].term.focus(); }
 });
 

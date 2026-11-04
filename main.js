@@ -21,8 +21,12 @@ app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
     win.webContents.on('console-message', (e, lvl, msg) => lvl >= 2 && console.log('JSERR', msg));
     win.webContents.on('did-finish-load', () => setTimeout(async () => {
       console.log('SMOKE', await win.webContents.executeJavaScript(
-        `JSON.stringify({ app: require('electron').ipcRenderer ? 'ok' : 'x', items: document.querySelectorAll('.it').length, pinned: !!document.querySelector('.pin'), more: !!document.getElementById('more'), notif: typeof Notification })`));
+        `JSON.stringify({ popupBlocked: window.open('http://example.invalid') === null, app: require('electron').ipcRenderer ? 'ok' : 'x', items: document.querySelectorAll('.it').length, pinned: !!document.querySelector('.pin'), more: !!document.getElementById('more'), notif: typeof Notification })`));
       app.quit(); }, 3000)); }
+  // Security: this window has Node access, so it must never show anything but our own page.
+  // Links (incl. OSC 8 links in terminal output) open in the real browser, https only; navigation is blocked.
+  win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
+  win.webContents.on('will-navigate', e => e.preventDefault());
   win.loadFile('index.html');
 });
 app.on('window-all-closed', () => app.quit());

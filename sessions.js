@@ -83,7 +83,7 @@ async function usage(file) {
 // Same line Claude Code's /rename appends, so the terminal's /resume list shows it too.
 function rename(file, id, name) {
   name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 120);
-  if (!name || !/^[0-9a-f-]{36}$/.test(id) || !file.startsWith(PROJ) || !file.endsWith(id + '.jsonl')) return;
+  if (!name || !/^[0-9a-f-]{36}$/.test(id) || !(file = path.resolve(file)).startsWith(PROJ + path.sep) || path.basename(file) !== id + '.jsonl') return;
   fs.appendFileSync(file, JSON.stringify({ type: 'custom-title', customTitle: name, sessionId: id }) + '\n');
 }
 

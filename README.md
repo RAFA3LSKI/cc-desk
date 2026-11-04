@@ -31,7 +31,7 @@ Everything stays on your Mac. CC Desk sends nothing anywhere: no analytics, no s
 - the settings you change in its Settings window, in `~/.claude/settings.json` (backed up first; every other key is left alone),
 - its own preferences, in `~/.claude-desk.json`.
 
-The only network traffic is `git fetch` against this repo, to check for updates.
+The only network traffic is `git fetch` against this repo, to check for updates. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo.
 
 ## How it works
 Electron + [xterm.js](https://xtermjs.org) + [node-pty](https://github.com/microsoft/node-pty). `sessions.js` reads the session files, `settings.js` edits a whitelist of settings, `main.js` runs `claude` in a pseudo-terminal, `index.html` is the UI. Live status comes from the `~/.claude/sessions/<pid>.json` files Claude Code writes (an approach borrowed from [Nimbalyst](https://github.com/nimbalyst/nimbalyst)).
