@@ -1,0 +1,5 @@
+node_modules/
+CLAUDE.local.md
+icon.icns
+*.log
+.DS_Store

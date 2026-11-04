@@ -1,0 +1,385 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>CC Desk</title>
+<link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+<style>
+  :root { --bg:#262624; --side:#1f1e1d; --line:#3a3936; --text:#e8e6dc; --dim:#9b9a93; --accent:#d97757;
+          --busy:#e5b454; --wait:#e06c75; --idle:#7fb77e; }
+  * { box-sizing:border-box; }
+  body { margin:0; display:flex; height:100vh; background:var(--bg); color:var(--text);
+         font:13px -apple-system, system-ui, sans-serif; overflow:hidden; }
+  #side { width:300px; min-width:300px; background:var(--side); border-right:1px solid var(--line);
+          display:flex; flex-direction:column; }
+  #top { padding:14px 12px 8px; display:flex; flex-direction:column; gap:8px; -webkit-app-region:drag; }
+  #top > * { -webkit-app-region:no-drag; }
+  button { background:none; color:var(--text); border:1px solid var(--line); border-radius:8px;
+           padding:7px 10px; font:inherit; cursor:pointer; text-align:left; }
+  button:hover { background:#2c2b28; }
+  #new { background:var(--accent); border-color:var(--accent); color:#1f1e1d; font-weight:600; text-align:center; }
+  #q { background:#2c2b28; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; font:inherit; outline:none; }
+  #list { flex:1; overflow-y:auto; padding:0 6px 10px; }
+  .grp { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:12px 8px 4px; }
+  .it { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:8px; cursor:pointer; }
+  .it:hover { background:#2c2b28; } .it.on { background:#34332f; }
+  .it .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .it.empty .t { color:var(--dim); font-style:italic; }
+  .it .when { color:var(--dim); font-size:11px; }
+  .it .x { color:var(--dim); visibility:hidden; padding:0 2px; } .it:hover .x, .it .x.pinned { visibility:visible; }
+  .it .x.pinned { color:var(--accent); }
+  .it input { flex:1; background:#2c2b28; color:var(--text); border:1px solid var(--accent); border-radius:5px; font:inherit; padding:2px 5px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:transparent; flex:none; }
+  .dot.busy { background:var(--busy); animation:pulse 1.2s infinite; } .dot.waiting { background:var(--wait); }
+  .dot.idle { background:var(--idle); } .dot.open { border:1px solid var(--dim); }
+  @keyframes pulse { 50% { opacity:.35; } }
+  #foot { border-top:1px solid var(--line); padding:8px 12px; display:flex; gap:6px; }
+  #foot button { flex:1; text-align:center; font-size:12px; }
+  #main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  #bar { height:44px; display:flex; align-items:center; gap:12px; padding:0 14px; border-bottom:1px solid var(--line); -webkit-app-region:drag; }
+  #bar > * { -webkit-app-region:no-drag; }
+  #title { font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #use { color:var(--dim); font-size:12px; white-space:nowrap; margin-left:auto; }
+  #rewind { padding:4px 9px; font-size:12px; }
+  #terms { flex:1; position:relative; }
+  .term { position:absolute; inset:8px 4px 4px 12px; }
+  #empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:6px; }
+  #tip { height:26px; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
+  #tip b { color:var(--accent); font-weight:600; }
+  #panel { position:fixed; left:300px; bottom:0; width:340px; max-height:70vh; overflow-y:auto; background:var(--side);
+           border:1px solid var(--line); border-radius:10px 10px 0 0; padding:12px 14px; }
+  #acct { margin:0 12px 12px; display:flex; flex-direction:column; gap:1px; text-align:left; }
+  #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #acctPlan { color:var(--dim); font-size:11px; }
+  #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#2c2b28; border:1px solid var(--line);
+          border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:9; }
+  #menu .mail { color:var(--dim); padding:6px 10px 8px; overflow:hidden; text-overflow:ellipsis; }
+  #menu .mi { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:7px; cursor:pointer; }
+  #menu .mi:hover { background:#3a3936; } #menu .mi span { flex:1; } #menu kbd { color:var(--dim); font:inherit; font-size:12px; }
+  #menu .mi.sure { background:#5a2d2d; }
+  #menu hr { border:0; border-top:1px solid var(--line); margin:5px 4px; }
+
+  #set { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:20; }
+  #setBox { width:min(860px,92vw); height:min(620px,88vh); background:var(--bg); border:1px solid var(--line); border-radius:14px;
+            display:flex; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  #setNav { width:200px; background:var(--side); padding:18px 10px; display:flex; flex-direction:column; gap:2px; }
+  #setNav h3 { margin:0 10px 12px; font-size:15px; }
+  #setNav .nv { padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--dim); }
+  #setNav .nv:hover { background:#2c2b28; } #setNav .nv.on { background:#34332f; color:var(--text); }
+  #setBody { flex:1; overflow-y:auto; padding:22px 28px; position:relative; }
+  #setBody h2 { margin:0 0 4px; font-size:18px; } #setBody .sub { color:var(--dim); margin-bottom:16px; font-size:12px; }
+  .row { display:flex; align-items:center; gap:16px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .row .l { flex:1; } .row .d { color:var(--dim); font-size:12px; margin-top:3px; }
+  .row select { background:#2c2b28; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit; }
+  .sw { width:38px; height:22px; border-radius:11px; background:#4a4945; position:relative; cursor:pointer; flex:none; transition:.15s; }
+  .sw::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#e8e6dc; transition:.15s; }
+  .sw.on { background:var(--accent); } .sw.on::after { left:19px; }
+  #setClose { position:absolute; top:14px; right:16px; border:0; font-size:16px; color:var(--dim); }
+  #setMsg { color:var(--idle); font-size:12px; height:16px; margin-top:12px; }
+  .lnk { color:var(--accent); cursor:pointer; }
+  #panel h4 { margin:10px 0 4px; color:var(--dim); font-size:11px; text-transform:uppercase; }
+  #panel div.n { padding:2px 0; }
+</style></head>
+<body>
+<div id="side">
+  <div id="top">
+    <button id="new">+ New session</button>
+    <input id="q" placeholder="Search sessions…">
+  </div>
+  <div id="list"></div>
+  <div id="foot"><button id="extrasBtn">Agents &amp; skills</button><button id="showEmpty">Show empty</button></div>
+  <button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button>
+</div>
+<div id="main">
+  <div id="bar"><span id="title">CC Desk</span><span id="use"></span>
+    <button id="rewind" title="Go back to an earlier point in this session (/rewind)" hidden>⟲ Rewind</button></div>
+  <div id="terms"><div id="empty"><div style="font-size:22px">✳</div><div>Pick a session on the left, or start a new one.</div></div></div>
+  <div id="tip"></div>
+</div>
+<div id="panel" hidden></div>
+<div id="set" hidden><div id="setBox">
+  <div id="setNav"><h3>Settings</h3>
+    <div class="nv on" data-p="general">General</div><div class="nv" data-p="model">Model</div>
+    <div class="nv" data-p="notif">Notifications</div><div class="nv" data-p="conn">Connections</div><div class="nv" data-p="plugins">Plugins</div><div class="nv" data-p="app">This app</div></div>
+  <div id="setBody"><button id="setClose">✕</button><div id="setPage"></div><div id="setMsg"></div></div>
+</div></div>
+<div id="menu" hidden>
+  <div class="mail" id="menuMail"></div>
+  <div class="mi" data-set="1">⚙︎ <span>Settings</span><kbd>⌘,</kbd></div>
+  <div class="mi" data-cmd="/usage">◔ <span>Usage</span></div>
+  <div class="mi" data-url="https://docs.claude.com/en/docs/claude-code/overview">? <span>Get help</span></div>
+  <div class="mi" data-cmd="/feedback">◌ <span>Send feedback</span></div>
+  <hr>
+  <div class="mi" data-url="https://claude.ai/upgrade">☰ <span>View all plans</span></div>
+  <div class="mi" data-url="https://claude.ai/download">▭ <span>Get apps and extensions</span></div>
+  <div class="mi" data-cmd="/passes">✉︎ <span>Share guest passes</span></div>
+  <div class="mi" data-cmd="/release-notes">▤ <span>View changelog</span></div>
+  <div class="mi" data-url="https://www.anthropic.com/claude-code">ⓘ <span>Learn more</span><kbd>↗</kbd></div>
+  <hr>
+  <div class="mi" data-url="https://console.anthropic.com/settings/keys">⚿ <span>Get API keys</span><kbd>↗</kbd></div>
+  <hr>
+  <div class="mi" data-cmd="/logout" data-confirm="1">⇥ <span>Log out</span></div>
+</div>
+<script>
+const { ipcRenderer: ipc } = require('electron');
+const { Terminal } = require('@xterm/xterm');
+const { FitAddon } = require('@xterm/addon-fit');
+const HOME = require('os').homedir();
+const $ = id => document.getElementById(id);
+
+let APPNAME = 'CC Desk'; require('electron').ipcRenderer.invoke('name').then(n => { APPNAME = n; document.title = n; if (!active) $('title').textContent = n; });
+let deskPrefs = { notify: true, fontSize: 13 };
+let limit = 300, total = 0, prevStatus = null;
+let sessions = [], liveState = { byId:{}, byPid:{} }, showEmpty = false, active = null, renaming = null;
+const tabs = {}; // key -> { term, fit, el, pid, sessionId, cwd, title }
+
+const ago = ms => { const s = (Date.now()-ms)/1000;
+  return s<60?'now':s<3600?Math.floor(s/60)+'m':s<86400?Math.floor(s/3600)+'h':Math.floor(s/86400)+'d'; };
+const short = p => p === HOME ? 'Home' : p.replace(HOME, '~');
+const fmt = n => n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e3 ? Math.round(n/1e3)+'k' : String(n);
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function statusOf(sid, key) {
+  const t = key && tabs[key];
+  const v = (t && liveState.byPid[t.pid]) || (sid && liveState.byId[sid]);
+  return v ? v.status : (t ? 'open' : '');
+}
+
+function render() {
+  const q = $('q').value.toLowerCase(), list = $('list');
+  if (renaming) return; // don't wipe the rename box mid-typing
+  let html = '';
+  const openKeys = Object.keys(tabs);
+  if (openKeys.length) {
+    html += '<div class="grp">Open</div>';
+    for (const k of openKeys) { const t = tabs[k];
+      html += `<div class="it ${k===active?'on':''}" data-key="${k}"><span class="dot ${statusOf(t.sessionId,k)}"></span>
+        <span class="t">${esc(t.title)}</span><span class="x" data-close="${k}">✕</span></div>`; }
+  }
+  const shown = sessions.filter(s => (showEmpty || !s.empty || s.pinned) &&
+    (!q || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)));
+  const row = s => `<div class="it ${s.empty?'empty':''}" data-id="${s.id}" title="Double-click to rename">
+      <span class="dot ${statusOf(s.id)}"></span><span class="t">${esc(s.title)}</span>
+      ${s.cwd !== HOME ? `<span class="when">${esc(short(s.cwd).split('/').pop())}</span>` : ''}
+      <span class="when">${ago(s.mtime)}</span><span class="x pin ${s.pinned?'pinned':''}" data-pin="${s.id}" title="Pin">${s.pinned?'★':'☆'}</span></div>`;
+  const pinned = shown.filter(s => s.pinned), rest = shown.filter(s => !s.pinned);
+  if (pinned.length) html += '<div class="grp">Pinned</div>' + pinned.map(row).join('');
+  if (rest.length) html += '<div class="grp">Recent</div>' + rest.map(row).join('');
+  if (!q && total > limit) html += `<button id="more" style="width:100%;margin-top:8px;text-align:center">Load more (${total - limit} older)</button>`;
+  list.innerHTML = html || '<div class="grp">No sessions match</div>';
+}
+
+async function refresh() { const r = await ipc.invoke('list', limit); sessions = r.items; total = r.total; render(); }
+async function refreshLive() {
+  liveState = await ipc.invoke('live');
+  notify();
+  for (const t of Object.values(tabs)) { const v = liveState.byPid[t.pid]; if (v && v.id) t.sessionId = v.id; }
+  render();
+}
+
+// Mac notification when any interactive session finishes (busy -> idle) or starts waiting for you.
+function notify() {
+  const now = {}; for (const v of Object.values(liveState.byId)) now[v.id] = v.status;
+  if (prevStatus) for (const [id, st] of Object.entries(now)) {
+    const was = prevStatus[id]; if (!was || was === st) continue;
+    const finished = was === 'busy' && st === 'idle', waiting = st === 'waiting';
+    if (!finished && !waiting) continue;
+    const key = Object.keys(tabs).find(k => tabs[k].sessionId === id);
+    if (document.hasFocus() && key && key === active) continue; // you're already looking at it
+    const s = sessions.find(x => x.id === id), title = (key && tabs[key].title) || (s && s.title) || 'Claude session';
+    if (deskPrefs.notify === false) continue;
+    const n = new Notification(waiting ? 'Needs you' : 'Finished', { body: title, silent: false });
+    n.onclick = () => { ipc.send('focus'); if (key) show(key); else if (s) openTab(s.id, s.cwd, s.title); };
+  }
+  prevStatus = now;
+}
+
+function openTab(sessionId, cwd, title) {
+  const existing = Object.keys(tabs).find(k => sessionId && tabs[k].sessionId === sessionId);
+  if (existing) return show(existing);
+  const key = 'k' + Date.now();
+  const el = document.createElement('div'); el.className = 'term'; $('terms').appendChild(el);
+  const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
+    macOptionIsMeta:true, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
+  const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
+  term.onData(d => ipc.send('write', key, d));
+  term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
+  tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
+  ipc.invoke('open', key, cwd, sessionId, term.cols, term.rows).then(pid => tabs[key] && (tabs[key].pid = pid));
+  show(key);
+}
+
+function show(key) {
+  active = key;
+  for (const [k, t] of Object.entries(tabs)) t.el.style.visibility = k === key ? 'visible' : 'hidden';
+  $('empty').hidden = !!key;
+  $('rewind').hidden = !key;
+  const t = tabs[key];
+  if (t) { t.fit.fit(); t.term.focus(); $('title').textContent = t.title; loadUsage(t); }
+  else { $('title').textContent = APPNAME; $('use').textContent = ''; }
+  render();
+}
+
+function closeTab(key) {
+  const t = tabs[key]; if (!t) return;
+  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key];
+  show(Object.keys(tabs)[0] || null); refresh();
+}
+
+async function loadUsage(t) {
+  const s = sessions.find(x => x.id === t.sessionId);
+  if (!s) { $('use').textContent = ''; return; }
+  const u = await ipc.invoke('usage', s.file);
+  if (tabs[active] === t) $('use').textContent =
+    `${u.turns} turns · out ${fmt(u.output)} · in ${fmt(u.input)} · cache read ${fmt(u.cacheRead)} · cache write ${fmt(u.cacheWrite)}`;
+}
+
+ipc.on('data', (e, k, d) => tabs[k] && tabs[k].term.write(d));
+ipc.on('exit', (e, k) => tabs[k] && tabs[k].term.write('\r\n\x1b[2m[session ended — ✕ to close it]\x1b[0m\r\n'));
+
+$('list').addEventListener('click', async e => {
+  const close = e.target.dataset.close; if (close) return closeTab(close);
+  if (e.target.dataset.pin) { await ipc.invoke('pin', e.target.dataset.pin); return refresh(); }
+  if (e.target.id === 'more') { limit += 300; return refresh(); }
+  const it = e.target.closest('.it'); if (!it || renaming) return;
+  if (it.dataset.key) return show(it.dataset.key);
+  const s = sessions.find(x => x.id === it.dataset.id);
+  if (s) openTab(s.id, s.cwd, s.title);
+});
+$('list').addEventListener('dblclick', e => {
+  const it = e.target.closest('.it[data-id]'); if (!it) return;
+  const s = sessions.find(x => x.id === it.dataset.id); if (!s) return;
+  renaming = s.id;
+  const t = it.querySelector('.t'); const inp = document.createElement('input'); inp.value = s.title;
+  t.replaceWith(inp); inp.focus(); inp.select();
+  const done = async save => { if (!renaming) return; renaming = null;
+    if (save && inp.value.trim() !== s.title) { await ipc.invoke('rename', s.file, s.id, inp.value); for (const tb of Object.values(tabs)) if (tb.sessionId === s.id) tb.title = inp.value; }
+    refresh(); };
+  inp.onkeydown = ev => { if (ev.key === 'Enter') done(true); if (ev.key === 'Escape') done(false); };
+  inp.onblur = () => done(true);
+});
+$('q').oninput = render;
+$('new').onclick = () => openTab(null, (active && tabs[active].cwd) || HOME, 'New session');
+$('showEmpty').onclick = () => { showEmpty = !showEmpty; $('showEmpty').textContent = showEmpty ? 'Hide empty' : 'Show empty'; render(); };
+$('rewind').onclick = () => { if (!active) return; ipc.send('write', active, '/rewind'); setTimeout(() => ipc.send('write', active, '\r'), 150); tabs[active].term.focus(); };
+$('extrasBtn').onclick = async () => {
+  const p = $('panel'); if (!p.hidden) return p.hidden = true;
+  const x = await ipc.invoke('extras');
+  p.innerHTML = '<div style="color:var(--dim);font-size:12px">Ask Claude in any session to add or change these.</div>' +
+    `<h4>Agents (${x.agents.length})</h4>` + x.agents.map(n => `<div class="n">${esc(n)}</div>`).join('') +
+    `<h4>Skills (${x.skills.length})</h4>` + x.skills.map(n => `<div class="n">${esc(n)}</div>`).join('');
+  p.hidden = false;
+};
+window.addEventListener('resize', () => active && tabs[active].fit.fit());
+let updating = false;
+ipc.on('update', (e, n) => {
+  $('tip').hidden = false;
+  $('tip').innerHTML = `<b>Update available</b>&nbsp;(${n} change${n > 1 ? 's' : ''}). <span class="lnk" id="upd">Install &amp; restart</span>`;
+  clearInterval(tipTimer);
+});
+$('tip').addEventListener('click', async e => {
+  if (e.target.id !== 'upd' || updating) return; updating = true; e.target.textContent = 'Updating… (about a minute)';
+  const r = await ipc.invoke('doUpdate'); updating = false;
+  if (r === 'later') e.target.textContent = 'Install & restart'; else if (r) $('tip').textContent = 'Update ' + r;
+});
+$('terms').addEventListener('dragover', e => e.preventDefault());
+$('terms').addEventListener('drop', e => {
+  e.preventDefault(); if (!active) return;
+  const { webUtils } = require('electron');
+  const paths = [...e.dataTransfer.files].map(f => webUtils.getPathForFile(f)).filter(Boolean);
+  if (paths.length) { ipc.send('write', active, paths.map(p => "'" + p.replace(/'/g, "'\\''") + "'").join(' ') + ' '); tabs[active].term.focus(); }
+});
+
+const tips = [
+  '<b>⟲ Rewind</b> takes a session back to an earlier message: the button up top, or press Esc twice in the terminal.',
+  '<b>Double-click</b> a session to rename it (shows in the terminal\'s /resume list too). <b>☆</b> pins it to the top.',
+  'You get a <b>Mac notification</b> when a session finishes or needs you. Click it to jump there.',
+  '<b>Dots:</b> yellow = working · red = waiting for you · green = finished · hollow = open, not started.',
+  'Type <b>/usage</b> in any session to see your weekly usage.',
+  '<b>Drag a file or screenshot</b> onto a session to give it to Claude. <b>Ctrl+V</b> pastes a copied image.',
+  '<b>⌘,</b> opens Settings. <b>Connections</b> there shows whether your MCP tools are connected.',
+  'Sessions keep running when you switch to another one: you can have several going at once.',
+];
+let tipI = 0; const tip = () => { $('tip').innerHTML = tips[tipI++ % tips.length]; }; tip(); const tipTimer = setInterval(tip, 40000);
+
+// Account menu (like the Claude app's): slash commands go to the open session, links open in the browser.
+function runCmd(cmd) {
+  const send = k => { ipc.send('write', k, cmd); setTimeout(() => ipc.send('write', k, '\r'), 150); tabs[k].term.focus(); };
+  if (active) return send(active);
+  openTab(null, HOME, 'New session'); const k = active; setTimeout(() => tabs[k] && send(k), 4000); // ponytail: fixed wait for claude to boot
+}
+ipc.invoke('account').then(a => { $('acctMail').textContent = a.email || 'Account'; $('acctPlan').textContent = a.plan || ''; $('menuMail').textContent = a.email || ''; });
+$('acct').onclick = e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; $('menu').querySelectorAll('.sure').forEach(x => x.classList.remove('sure')); };
+document.addEventListener('click', e => { if (!$('menu').contains(e.target)) $('menu').hidden = true; });
+$('menu').addEventListener('click', e => {
+  const mi = e.target.closest('.mi'); if (!mi) return;
+  if (mi.dataset.confirm && !mi.classList.contains('sure')) { mi.classList.add('sure'); mi.querySelector('span').textContent = 'Click again to log out'; return; }
+  $('menu').hidden = true;
+  if (mi.dataset.set) openSettings(); else if (mi.dataset.url) ipc.send('url', mi.dataset.url); else runCmd(mi.dataset.cmd);
+  if (mi.dataset.confirm) { mi.classList.remove('sure'); mi.querySelector('span').textContent = 'Log out'; }
+});
+window.addEventListener('keydown', e => { if (e.metaKey && e.key === ',') { e.preventDefault(); e.stopPropagation(); openSettings(); } }, true);
+
+
+// Settings window: real switches over ~/.claude/settings.json (see settings.js for the whitelist).
+let ST = null, setPageName = 'general';
+const opt = (key, val, list) => `<select data-k="${key}">${list.map(([v, l]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+const sw = (key, on) => `<div class="sw ${on ? 'on' : ''}" data-k="${key}"></div>`;
+const row = (label, desc, ctrl) => `<div class="row"><div class="l">${label}<div class="d">${desc}</div></div>${ctrl}</div>`;
+const PAGES = {
+  general: c => `<h2>General</h2><div class="sub">Applies to Claude Code everywhere, in this app and in the terminal. Takes effect in new sessions.</div>` +
+    row('Theme', 'Colours inside the Claude Code terminal.', opt('theme', c.theme || 'dark', [['dark','Dark'],['light','Light']])) +
+    row('Permissions', 'What Claude may do without asking you first.', opt('permissions.defaultMode', (c.permissions||{}).defaultMode || 'default',
+      [['default','Ask before actions'],['acceptEdits','Auto-accept file edits'],['plan','Plan only, no changes'],['bypassPermissions','Never ask (bypass, risky)']])) +
+    row('Auto-compact', 'Shrink a long chat automatically when it fills up. Off = you run /compact yourself.', sw('autoCompactEnabled', !!c.autoCompactEnabled)) +
+    `<div class="row"><div class="l">Everything else<div class="d">Opens Claude Code's own full settings list in the session you have open.</div></div><span class="lnk" id="advCfg">Open /config ↗</span></div>`,
+  model: c => `<h2>Model</h2><div class="sub">The default for new sessions. You can still switch inside a session with /model.</div>` +
+    row('Model', 'Opus = strongest · Sonnet = fast all-rounder · Haiku = cheapest.', opt('model', c.model || 'opus', [['opus','Opus'],['sonnet','Sonnet'],['haiku','Haiku']])) +
+    row('Effort', 'How hard it thinks. Higher = better on hard jobs, uses more of your limit.', opt('effortLevel', c.effortLevel || 'medium',
+      [['low','Low'],['medium','Medium'],['high','High'],['xhigh','Extra high'],['max','Max']])),
+  notif: (c, d) => `<h2>Notifications</h2><div class="sub">Pings when a session needs you or is done.</div>` +
+    row('Mac notifications from this app', 'Finished + needs-you pings, click to jump to the session.', sw('desk.notify', d.notify)) +
+    row('Claude Code: input needed', "Claude Code's own alert when it's waiting on you.", sw('inputNeededNotifEnabled', !!c.inputNeededNotifEnabled)) +
+    row('Claude Code: agent push', 'Alerts from background agents.', sw('agentPushNotifEnabled', !!c.agentPushNotifEnabled)),
+  conn: () => `<h2>Connections</h2><div class="sub">Your MCP servers and claude.ai connectors. Same list and same health check as <code>claude mcp list</code>.</div>
+    <div id="connList" class="d">Checking… (takes about 15 seconds)</div>
+    <div class="row"><div class="l">Add or fix one<div class="d">Ask Claude in any session, e.g. "connect Notion".</div></div><span class="lnk" id="connRe">Check again</span></div>`,
+  plugins: c => `<h2>Plugins</h2><div class="sub">Turn installed plugins on or off. New ones still get installed by asking Claude.</div>` +
+    Object.entries(c.enabledPlugins || {}).sort().map(([n, on]) => { const [name, src] = n.split('@');
+      return row(esc(name), 'from ' + esc(src || ''), sw('enabledPlugins.' + n, on)); }).join(''),
+  app: (c, d) => `<h2>This app</h2><div class="sub">Only affects this window.</div>` +
+    row('Terminal text size', 'Size of the text inside sessions.', opt('desk.fontSize', String(d.fontSize), [10,11,12,13,14,15,16,18,20].map(n => [String(n), n + ' pt']))) +
+    row('Tips line', 'The rotating tip at the bottom of the window.', sw('desk.tips', d.tips)),
+};
+async function loadConn() {
+  const el = $('connList'); if (!el) return; el.textContent = 'Checking… (takes about 15 seconds)';
+  const list = await ipc.invoke('mcp'); if (!$('connList')) return;
+  $('connList').innerHTML = list.length ? list.map(x => row(esc(x.name), '', `<span style="color:${/Connected/.test(x.state) ? 'var(--idle)' : 'var(--busy)'}">${esc(x.state)}</span>`)).join('')
+    : 'Could not read the list. Try "Check again".';
+}
+async function openSettings(page) {
+  ST = await ipc.invoke('settings'); if (page) setPageName = page;
+  document.querySelectorAll('#setNav .nv').forEach(n => n.classList.toggle('on', n.dataset.p === setPageName));
+  $('setPage').innerHTML = PAGES[setPageName](ST.claude, ST.desk); $('setMsg').textContent = ''; $('set').hidden = false; if (setPageName === 'conn') loadConn();
+}
+async function saveSetting(k, v) {
+  try { await ipc.invoke('setSetting', k, v); $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Saved ✓';
+        ST = await ipc.invoke('settings'); applyDesk(); }
+  catch (e) { $('setMsg').style.color = 'var(--wait)'; $('setMsg').textContent = 'Not saved: ' + e.message; openSettings(); }
+}
+function applyDesk() {
+  const d = (ST && ST.desk) || {}; deskPrefs = d;
+  for (const t of Object.values(tabs)) { if (t.term.options.fontSize !== d.fontSize) { t.term.options.fontSize = d.fontSize; t.fit.fit(); } }
+  $('tip').hidden = d.tips === false;
+}
+$('setNav').addEventListener('click', e => { const n = e.target.closest('.nv'); if (n) openSettings(n.dataset.p); });
+$('setPage').addEventListener('change', e => { const k = e.target.dataset.k; if (k) saveSetting(k, k === 'desk.fontSize' ? +e.target.value : e.target.value); });
+$('setPage').addEventListener('click', e => {
+  if (e.target.id === 'connRe') return loadConn();
+  if (e.target.id === 'advCfg') { $('set').hidden = true; return runCmd('/config'); }
+  const s = e.target.closest('.sw'); if (!s) return; s.classList.toggle('on'); saveSetting(s.dataset.k, s.classList.contains('on'));
+});
+$('setClose').onclick = () => $('set').hidden = true;
+$('set').addEventListener('click', e => { if (e.target.id === 'set') $('set').hidden = true; });
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('set').hidden) { $('set').hidden = true; e.stopPropagation(); } }, true);
+ipc.invoke('settings').then(s => { ST = s; applyDesk(); });
+
+refresh(); refreshLive(); setInterval(refresh, 15000); setInterval(refreshLive, 2000);
+</script>
+</body></html>

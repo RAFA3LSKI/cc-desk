@@ -1,0 +1,1 @@
+{"name":"claude-desk","version":"0.1.0","main":"main.js","private":true,"scripts":{"start":"electron .","check":"node check.js","rebuild":"electron-rebuild -f -w node-pty"},"dependencies":{"@electron/rebuild":"4.0.1","@xterm/addon-fit":"0.10.0","@xterm/xterm":"5.5.0","electron":"37.2.6","node-pty":"1.0.0"}}
