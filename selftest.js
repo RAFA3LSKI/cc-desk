@@ -1,5 +1,7 @@
 // DESK_SELFTEST=1 electron selftest.js : hidden window, opens one new claude session, prints what the terminal shows, quits.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
+dialog.showMessageBoxSync = () => 2; // quit dialog: Stop them. A hidden dialog would otherwise wait forever.
+process.env.DESK_PTYD_SOCK = require('path').join(require('os').tmpdir(), 'desk-selftest-' + process.pid + '.sock'); process.env.DESK_PTYD_EXIT_WITH_CLIENT = '1'; // own helper, never the real sessions
 app.setActivationPolicy && app.setActivationPolicy('prohibited');
 app.whenReady().then(() => {
   const orig = BrowserWindow.prototype.loadFile;

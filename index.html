@@ -215,15 +215,29 @@ function openTab(sessionId, cwd, title) {
   const existing = Object.keys(tabs).find(k => sessionId && tabs[k].sessionId === sessionId);
   if (existing) return show(existing);
   const key = 'k' + Date.now();
+  const tb = makeTab(key, sessionId, cwd, title);
+  ipc.invoke('open', key, cwd, sessionId, tb.term.cols, tb.term.rows, title).then(pid => tabs[key] && (tabs[key].pid = pid))
+    .catch(err => tabs[key] && tabs[key].term.write(`\r\n\x1b[31mCouldn't start this session: ${err.message}\x1b[0m\r\n`));
+  show(key);
+}
+
+function makeTab(key, sessionId, cwd, title) {
   const el = document.createElement('div'); el.className = 'term'; $('terms').appendChild(el);
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
     macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
   term.onData(d => ipc.send('write', key, d));
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
-  tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
-  ipc.invoke('open', key, cwd, sessionId, term.cols, term.rows).then(pid => tabs[key] && (tabs[key].pid = pid));
-  show(key);
+  return tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
+}
+
+// Sessions that kept running while the app was closed come back as tabs.
+async function restoreTabs() {
+  const items = await ipc.invoke('running').catch(() => []); if (!items.length) return;
+  await refresh();
+  for (const x of items) { if (tabs[x.key]) continue; const m = x.meta || {}, t = makeTab(x.key, m.resumeId || null, m.cwd, (sessions.find(s => s.id === m.resumeId) || {}).title || m.title); t.pid = x.pid; }
+  show(Object.keys(tabs)[0]); await refreshLive();
+  for (const x of items) { const t = tabs[x.key]; if (t) { t.fit.fit(); ipc.send('attach', x.key, t.term.cols, t.term.rows); } }
 }
 
 function show(key) {
@@ -366,6 +380,7 @@ const PAGES = {
     Object.entries(c.enabledPlugins || {}).sort().map(([n, on]) => { const [name, src] = n.split('@');
       return row(esc(name), 'from ' + esc(src || ''), sw('enabledPlugins.' + n, on)); }).join(''),
   app: (c, d) => `<h2>This app</h2><div class="sub">Only affects this window.</div>` +
+    row('When you quit with sessions open', 'Sessions can keep working in the background and come back when you reopen the app. They still use your plan.', opt('desk.quitSessions', d.quitSessions === 'keep' ? 'keep' : 'ask', [['ask','Ask each time'],['keep','Always keep running']])) +
     row('Terminal text size', 'Size of the text inside sessions.', opt('desk.fontSize', String(d.fontSize), [10,11,12,13,14,15,16,18,20].map(n => [String(n), n + ' pt']))) +
     row('Tips line', 'The rotating tip at the bottom of the window.', sw('desk.tips', d.tips)),
 };
@@ -418,7 +433,7 @@ function limitBars() {
     return `<div class="uMeter"><div class="t"><span>${name}</span><span class="uDim">${pct}% used · resets ${dayOf(+r)} ${String(r.getHours()).padStart(2, '0')}:${String(r.getMinutes()).padStart(2, '0')}</span></div><div class="uTrack"><span style="width:${Math.min(pct, 100)}%"></span></div></div>`; };
   const html = bar('This week', L.seven_day) + bar('5-hour window', L.five_hour);
   return html ? html + `<div class="uDim" style="margin-bottom:12px">Limits as of ${uAgo(L.at)}. They update while a session is running.</div>`
-    : `<div class="uDim" style="margin-bottom:12px">Weekly and 5-hour limits appear here after Claude's next reply in any session.</div>`;
+    : `<div class="uDim" style="margin-bottom:12px">Weekly and 5-hour limits aren't available yet. They appear if your status line saves them to ~/.claude/state/rate-limits.json.</div>`;
 }
 function uBody() {
   const rows = uRows();
@@ -500,6 +515,6 @@ $('set').addEventListener('click', e => { if (e.target.id === 'set') $('set').hi
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('set').hidden) { $('set').hidden = true; e.stopPropagation(); } }, true);
 ipc.invoke('settings').then(s => { ST = s; applyDesk(); });
 
-refresh(); refreshLive(); setInterval(refresh, 15000); setInterval(refreshLive, 2000);
+refresh(); refreshLive(); setInterval(refresh, 15000); setInterval(refreshLive, 2000); restoreTabs();
 </script>
 </body></html>

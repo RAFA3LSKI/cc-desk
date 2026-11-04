@@ -25,7 +25,7 @@ if (!process.versions.electron) {
   // fake login shell: no real claude. "mcp" call answers a fixed list, anything else just idles like a terminal session.
   fs.writeFileSync(path.join(H, 'fakesh'), '#!/bin/sh\ncase "$*" in *mcp*) echo "claude.ai Fake: https://x - Connected";; *) exec sleep 600;; esac\n', { mode: 0o755 });
   console.log('sandbox HOME:', H, '| fixtures:', picked.length);
-  const env = { ...process.env, HOME: H, SHELL: path.join(H, 'fakesh'), DESK_UITEST: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.DESK_SMOKE;
+  const env = { ...process.env, HOME: H, SHELL: path.join(H, 'fakesh'), DESK_UITEST: '1', DESK_PTYD_EXIT_WITH_CLIENT: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.DESK_SMOKE;
   const r = cp.spawnSync(require('electron'), [__filename], { env, stdio: 'inherit', timeout: 180000 });
   const after = realFiles.map(sha), same = before.every((h, i) => h === after[i]);
   console.log(`REAL FILES UNCHANGED: ${same ? 'PASS' : 'FAIL'} (settings.json ${before[0].slice(0, 12)} -> ${after[0].slice(0, 12)}, .claude-desk.json ${before[1].slice(0, 12)} -> ${after[1].slice(0, 12)})`);
@@ -50,7 +50,7 @@ async function run() {
   const win = BrowserWindow.getAllWindows()[0], wc = win.webContents;
   wc.on('console-message', (e, lvl, msg) => lvl >= 3 && jserr.push(msg));
   const R = js => wc.executeJavaScript(js);
-  const flow = async (name, fn) => { fails = []; try { await fn(); } catch (e) { fails.push('EXC ' + e.message); } results.push([name, fails.length ? 'FAIL' : 'PASS', fails.join(' | ')]); };
+  const flow = async (name, fn) => { fails = []; try { await fn(); } catch (e) { fails.push('EXC ' + e.message); } results.push([name, fails.length ? 'FAIL' : 'PASS', fails.join(' | ')]); if (process.env.UI_VERBOSE) console.log(name, fails.length ? 'FAIL ' + fails.join(' | ') : 'PASS'); };
   const note = (name, why) => results.push([name, 'NOT_TESTED', why]);
   await new Promise(r => wc.isLoading() ? wc.once('did-finish-load', r) : r()); await sleep(2000);
   const vis = id => R(`getComputedStyle($('${id}')).display !== 'none'`);
@@ -224,10 +224,12 @@ async function run() {
     await R(`$('acct').click(); document.querySelector('#menu [data-set]').click()`); await sleep(300); ok(await vis('set') && !(await vis('menu')), 'menu > Settings'); await R(`$('setClose').click()`);
   });
   await flow('21 window resize keeps terminal fitted', async () => {
+    win.setPosition(-4000, -4000); win.setOpacity(0.01); win.showInactive(); await sleep(400); // macOS sends no resize to a hidden window; off-screen and takes no focus
     for (const [w, h] of [[900, 600], [1300, 850], [1000, 700]]) { win.setSize(w, h); await sleep(600);
       const r = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[active], d = t.fit.proposeDimensions(), a = t.el.getBoundingClientRect(), b = $('terms').getBoundingClientRect();
         return { cols: t.term.cols, rows: t.term.rows, pc: d.cols, pr: d.rows, inside: a.right <= b.right + 1 && a.bottom <= b.bottom + 1, w: innerWidth }; })())`));
       ok(r.cols === r.pc && r.rows === r.pr && r.inside, `${w}x${h}: ${JSON.stringify(r)}`); }
+    win.hide();
   });
   await flow('27 Usage: real numbers, tabs, pills, session detail, limits', async () => {
     const SID = '11111111-1111-4111-8111-111111111111', dir = path.join(os.homedir(), '.claude/projects/-usagefix'), now = new Date().toISOString();
@@ -263,10 +265,11 @@ async function run() {
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');
   note('25 Update & restart click', 'NOT_TESTED_runs install.sh and relaunches');
   await flow('26 quit-with-sessions dialog (own sandbox process only)', async () => {
-    const n = await R(`Object.keys(tabs).length`); let calls = [], answer = 1;
+    await R(`ipc.invoke('setSetting', 'desk.quitSessions', 'ask')`); // flow 15 left it on the last option
+    const n = await R(`Object.keys(tabs).length`); let calls = [], answer = 3;
     dialog.showMessageBoxSync = (w, o) => { calls.push(o); return answer; };
     app.quit(); await sleep(500); ok(calls.length === 1, 'dialog calls ' + calls.length); ok(calls[0] && calls[0].message.startsWith(`${n} session${n > 1 ? 's are' : ' is'} open`), 'message: ' + (calls[0] && calls[0].message));
-    ok(calls[0] && calls[0].buttons.join() === 'Quit,Cancel' && calls[0].defaultId === 1, 'Cancel should be default'); ok(!win.isDestroyed(), 'Cancel did not keep the window');
+    ok(calls[0] && calls[0].buttons.join() === 'Keep running,Always keep running,Stop them,Cancel' && calls[0].cancelId === 3, 'quit choices'); ok(!win.isDestroyed(), 'Cancel did not keep the window');
     ok(await R(`Object.keys(tabs).length`) === n, 'Cancel lost tabs');
   });
   console.log('\n=== UITEST RESULTS ===');

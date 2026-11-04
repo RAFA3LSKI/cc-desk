@@ -29,7 +29,7 @@ case "\${FAKE_MODE:-idle}" in
 esac
 `, { mode: 0o755 });
   console.log('command: node uitest-advanced.js | sandbox HOME:', H);
-  const env = { ...process.env, HOME: H, SHELL: path.join(H, 'fakesh'), DESK_UITEST_ADV: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.DESK_SMOKE;
+  const env = { ...process.env, HOME: H, DESK_PTYD_EXIT_WITH_CLIENT: '1', SHELL: path.join(H, 'fakesh'), DESK_UITEST_ADV: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.DESK_SMOKE;
   const r = cp.spawnSync(require('electron'), [__filename], { env, stdio: 'inherit', timeout: 420000 });
   const after = realFiles.map(sha), pAfter = newest();
   const changed = [...pBefore].filter(([f, t]) => pAfter.get(f) !== t && !liveIds.has(path.basename(f, '.jsonl'))).map(([f]) => path.basename(f));
@@ -272,7 +272,7 @@ async function run() {
     const click = async () => { wc.send('update', 3); await sleep(200); await R(`document.querySelector('#upd').click()`); };
     // (a) a session is open -> asks first; "Later" runs nothing
     await R(`$('new').click()`); await sleep(700); fs.writeFileSync(LOG, ''); calls.dialogs.length = 0; dialogAnswer = 1; await click(); await sleep(700);
-    ok(calls.dialogs.length === 1 && /stops the 1 open session/.test(calls.dialogs[0].detail) && calls.dialogs[0].buttons.join() === 'Update & restart,Later' && calls.dialogs[0].defaultId === 0, 'dialog ' + JSON.stringify(calls.dialogs[0]));
+    ok(calls.dialogs.length === 1 && /1 open session keeps running/.test(calls.dialogs[0].detail) && calls.dialogs[0].buttons.join() === 'Update & restart,Later' && calls.dialogs[0].defaultId === 0, 'dialog ' + JSON.stringify(calls.dialogs[0]));
     ok(/Install & restart/.test(await R(`$('tip').textContent`)) && !shlog().some(l => /install.sh/.test(l.args)), 'Later still ran the update or left the link stuck: ' + await R(`$('tip').textContent`)); await closeAll(); await sleep(500);
     // (b) update command fails (fake shell runs install.sh --update from a temp clone with node off PATH)
     process.env.FAKE_MODE = 'update_fail'; process.env.FAKE_CLONE = CLONE; fs.writeFileSync(LOG, ''); await click(); await sleep(2500); const tip = await R(`$('tip').textContent`); info('failure line shown: "' + tip + '"');

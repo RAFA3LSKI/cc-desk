@@ -13,6 +13,8 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 - **Several sessions open at once**, with live dots: working · waiting for you · finished
 - **Mac notifications** when a session finishes or needs you; click to jump there
 - **Settings window** (⌘,) for model, effort, permissions, theme, notifications, plugins, connections (`claude mcp list`)
+- **Sessions that survive quitting:** a small background helper holds them, so quit or update the app and they keep working, then reconnect when you reopen it. You choose in Settings whether quitting asks first. Sessions untouched for 24 hours stop on their own; their chats stay saved.
+- **Usage page** in Settings: estimated cost, input, output and cached tokens by session, day, hour and model.
 - **Per-session usage** (turns and tokens), a ⟲ Rewind button, drag files onto a session, an account menu
 - **Updates in the app**: an "Update available" line shows up when there's a new version
 
@@ -29,7 +31,9 @@ Then open **CC Desk** from Spotlight (⌘ Space). Updates: click **Install & res
 Everything stays on your Mac. CC Desk sends nothing anywhere: no analytics, no server. It reads Claude Code's local files (`~/.claude/projects`, `~/.claude/sessions`), and it writes only:
 - the rename line that Claude Code's own `/rename` writes,
 - the settings you change in its Settings window, in `~/.claude/settings.json` (backed up first; every other key is left alone),
-- its own preferences, in `~/.claude-desk.json`.
+- its own preferences, in `~/.claude-desk.json`,
+- a cache of token counts for the Usage page, in `~/.claude-desk-usage.json`,
+- the background helper's socket and log, `~/.claude-desk-ptyd.sock` and `.log`.
 
 The only network traffic is `git fetch` against this repo, to check for updates. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo.
 

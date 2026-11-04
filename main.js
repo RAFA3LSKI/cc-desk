@@ -1,9 +1,14 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
-const pty = require('node-pty');
+const ptyd = require('./ptyd');
 const S = require('./sessions');
 const ST = require('./settings');
 
-let win; const ptys = {};
+let win; const live = new Set(); // keys of the sessions the background helper is holding
+const toWin = (...a) => { if (win && !win.isDestroyed()) win.webContents.send(...a); };
+const D = ptyd.client(m => {
+  if (m.t === 'data') toWin('data', m.key, m.d);
+  if (m.t === 'exit') { live.delete(m.key); toWin('exit', m.key); }
+}, () => { for (const k of live) toWin('exit', k); live.clear(); }); // helper gone: tell the tabs instead of leaving them frozen
 // Window name = the .app bundle's name ("CC Desk" by default), so a renamed copy shows its own name.
 const NAME = (app.getPath('exe').match(/([^/]+)\.app\//) || [, 'CC Desk'])[1].replace(/^Electron$/, 'CC Desk');
 // DESK_SMOKE=1: hidden run that loads the UI, reports errors + sidebar count, then quits.
@@ -33,16 +38,16 @@ app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
   win.loadFile('index.html');
 });
 app.on('window-all-closed', () => app.quit());
-// Quitting ends every session running inside the app, so ask first.
+// Sessions live in the background helper, so quitting doesn't have to stop them. Ask, unless Settings says always keep running.
 let quitOK = false;
 app.on('before-quit', e => {
-  const n = Object.keys(ptys).length;
-  if (!quitOK && n && !SMOKE) {
-    const r = dialog.showMessageBoxSync(win, { type: 'warning', buttons: ['Quit', 'Cancel'], defaultId: 1, cancelId: 1,
-      message: `${n} session${n > 1 ? 's are' : ' is'} open in ${NAME}.`, detail: 'Quitting stops them. Their chats stay saved, and you can resume them later.' });
-    if (r !== 0) return e.preventDefault();
-  }
-  quitOK = true; Object.values(ptys).forEach(p => p.kill());
+  if (quitOK || SMOKE || !live.size) return;
+  if (ST.get().desk.quitSessions === 'keep') return;
+  const n = live.size, r = dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Keep running', 'Always keep running', 'Stop them', 'Cancel'], defaultId: 0, cancelId: 3,
+    message: `${n} session${n > 1 ? 's are' : ' is'} open in ${NAME}.`, detail: 'Keep running: they carry on in the background and come back when you reopen the app, still using your plan. Stop them: their chats stay saved, and you can resume them later.' });
+  if (r === 3) return e.preventDefault();
+  if (r === 1) ST.set('desk.quitSessions', 'keep');
+  if (r === 2) { e.preventDefault(); quitOK = true; D.stopAll().finally(() => app.quit()); }
 });
 
 ipcMain.handle('list', (e, limit) => S.list(limit));
@@ -67,9 +72,9 @@ function checkUpdate() {
 }
 setTimeout(checkUpdate, 10000); setInterval(checkUpdate, 6 * 3600 * 1000);
 ipcMain.handle('doUpdate', async () => {
-  const n = Object.keys(ptys).length;
+  const n = live.size;
   if (n && dialog.showMessageBoxSync(win, { type: 'question', buttons: ['Update & restart', 'Later'], defaultId: 0, cancelId: 1,
-      message: 'Install the update now?', detail: `The app restarts, which stops the ${n} open session${n > 1 ? 's' : ''}. Their chats stay saved.` }) !== 0) return 'later';
+      message: 'Install the update now?', detail: `The app restarts. Your ${n} open session${n > 1 ? 's' : ''} keep${n > 1 ? '' : 's'} running and reconnect${n > 1 ? '' : 's'} afterwards.` }) !== 0) return 'later';
   const bundle = (app.getPath('exe').match(/^(.*?\.app)\//) || [])[1];
   return new Promise(res => execFile(process.env.SHELL || '/bin/zsh', ['-ilc', './install.sh --update'],
     { cwd: __dirname, timeout: 600000, env: { ...process.env, ...(bundle ? { CC_DESK_APP: bundle } : {}) } }, (err, out, errOut) => {
@@ -86,21 +91,20 @@ ipcMain.handle('pin', (e, id) => S.togglePin(id));
 ipcMain.on('focus', () => { win.show(); win.focus(); });
 
 // Runs the real installed `claude` through a login shell, so PATH, hooks and settings are exactly the terminal's.
-ipcMain.handle('open', (e, key, cwd, resumeId, cols, rows) => {
+ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
   if (resumeId && !/^[0-9a-f-]{36}$/.test(resumeId)) throw new Error('bad session id');
   // unset: a CLAUDE_CODE_OAUTH_TOKEN exported in the shell profile (long-lived token for scripts) hides the claude.ai connectors; use the normal login instead.
   const cmd = 'unset CLAUDE_CODE_OAUTH_TOKEN; exec claude' + (resumeId ? ' --resume ' + resumeId : '');
   const missing = !require('fs').existsSync(cwd) && cwd; if (missing) cwd = S.HOME;
-  const p = pty.spawn(process.env.SHELL || '/bin/zsh', ['-ilc', cmd], {
-    name: 'xterm-256color', cols, rows, cwd,
-    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
-  });
-  ptys[key] = p;
-  if (missing) win.webContents.send('data', key, `This session's folder no longer exists: ${missing}. Starting in your home folder instead.\r\n`);
-  p.onData(d => !win.isDestroyed() && win.webContents.send('data', key, d));
-  p.onExit(() => { delete ptys[key]; !win.isDestroyed() && win.webContents.send('exit', key); });
-  return p.pid;
+  const pid = await D.open({ key, shell: process.env.SHELL || '/bin/zsh', args: ['-ilc', cmd], cols, rows, cwd,
+    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
+  live.add(key);
+  if (missing) toWin('data', key, `This session's folder no longer exists: ${missing}. Starting in your home folder instead.\r\n`);
+  return pid;
 });
-ipcMain.on('write', (e, k, d) => ptys[k] && ptys[k].write(d));
-ipcMain.on('resize', (e, k, c, r) => ptys[k] && ptys[k].resize(c, r));
-ipcMain.on('kill', (e, k) => ptys[k] && ptys[k].kill());
+// What the helper kept running while the app was closed. Never starts the helper; the smoke test must not touch real sessions.
+ipcMain.handle('running', async () => { if (SMOKE) return []; const items = await D.list(); items.forEach(x => live.add(x.key)); return items; });
+ipcMain.on('attach', (e, k, c, r) => D.attach(k, c, r));
+ipcMain.on('write', (e, k, d) => live.has(k) && D.write(k, d));
+ipcMain.on('resize', (e, k, c, r) => live.has(k) && D.resize(k, c, r));
+ipcMain.on('kill', (e, k) => live.has(k) && D.kill(k));
