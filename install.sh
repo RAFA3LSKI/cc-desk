@@ -29,7 +29,7 @@ fi
 # App bundle: rebuilt only when missing or Electron changed. A renamed bundle keeps its name and icon.
 HAVE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP/Contents/Info.plist" 2>/dev/null || true)
 if [ ! -d "$APP" ] || [ "$HAVE" != "$EV" ]; then
-  NAME=$(basename "$APP" .app); TMPICON=$(mktemp)
+  NAME=$(basename "$APP" .app); TMPICON=$(mktemp -d)/icon.icns
   if [ -f "$APP/Contents/Resources/electron.icns" ]; then cp "$APP/Contents/Resources/electron.icns" "$TMPICON"
   else
     ICONSET=$(mktemp -d)/i.iconset; mkdir -p "$ICONSET"
