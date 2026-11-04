@@ -21,7 +21,10 @@ app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
     win.webContents.on('console-message', (e, lvl, msg) => lvl >= 2 && console.log('JSERR', msg));
     win.webContents.on('did-finish-load', () => setTimeout(async () => {
       console.log('SMOKE', await win.webContents.executeJavaScript(
-        `JSON.stringify({ popupBlocked: window.open('http://example.invalid') === null, app: require('electron').ipcRenderer ? 'ok' : 'x', items: document.querySelectorAll('.it').length, pinned: !!document.querySelector('.pin'), more: !!document.getElementById('more'), notif: typeof Notification })`));
+        `(async () => JSON.stringify({ popupBlocked: window.open('http://example.invalid') === null, app: require('electron').ipcRenderer ? 'ok' : 'x', items: document.querySelectorAll('.it').length, pinned: !!document.querySelector('.pin'), more: !!document.getElementById('more'), notif: typeof Notification,
+          hiddenLeaks: [...document.querySelectorAll('[hidden]')].filter(el => getComputedStyle(el).display !== 'none').map(el => el.id || el.tagName),
+          settingsClosable: await (async () => { await openSettings(); const opened = getComputedStyle($('set')).display !== 'none';
+            $('setClose').click(); return opened && getComputedStyle($('set')).display === 'none'; })() }))()`));
       app.quit(); }, 3000)); }
   // Security: this window has Node access, so it must never show anything but our own page.
   // Links (incl. OSC 8 links in terminal output) open in the real browser, https only; navigation is blocked.
