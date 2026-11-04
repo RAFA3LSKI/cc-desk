@@ -21,7 +21,7 @@ if (!process.versions.electron) {
       const rows = fs.readFileSync(f, 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       const cwd = (rows.find(r => r.cwd) || {}).cwd;
       if (!cwd || !fs.existsSync(cwd) || !rows.some(r => r.type === 'user')) continue;
-      fs.mkdirSync(path.join(C, 'projects', d), { recursive: true }); fs.copyFileSync(f, path.join(C, 'projects', d, n)); picked.push(f); } }
+      fs.mkdirSync(path.join(C, 'projects', d), { recursive: true }); fs.writeFileSync(path.join(C, 'projects', d, n), fs.readFileSync(f, 'utf8').replaceAll('"entrypoint":"sdk-cli"', '"entrypoint":"cli"')); picked.push(f); // so scripted runs count as normal chats here } }
   // fake login shell: no real claude. "mcp" call answers a fixed list, anything else just idles like a terminal session.
   fs.writeFileSync(path.join(H, 'fakesh'), '#!/bin/sh\ncase "$*" in *mcp*) echo "claude.ai Fake: https://x - Connected";; *) exec sleep 600;; esac\n', { mode: 0o755 });
   console.log('sandbox HOME:', H, '| fixtures:', picked.length);
@@ -77,8 +77,8 @@ async function run() {
   });
   await flow('03 Show empty toggle', async () => {
     await R(`$('showEmpty').click()`); const a = await R(`[$('showEmpty').textContent, document.querySelectorAll('#list .it[data-id]').length]`);
-    ok(a[0] === 'Hide empty', 'label ' + a[0]); ok(a[1] === fixtures.length, `rows ${a[1]} vs ${fixtures.length}`);
-    await R(`$('showEmpty').click()`); ok(await R(`$('showEmpty').textContent`) === 'Show empty', 'label did not revert');
+    ok(a[0] === 'Show less', 'label ' + a[0]); ok(a[1] === fixtures.length, `rows ${a[1]} vs ${fixtures.length}`);
+    await R(`$('showEmpty').click()`); ok(await R(`$('showEmpty').textContent`) === 'Show all', 'label did not revert');
   });
   const S1 = nonEmpty[0], S2 = nonEmpty[1];
   await flow('04 click session opens a tab, empty state hides', async () => {
@@ -288,6 +288,20 @@ async function run() {
     const t = rj(DESKF).ntfyTopic; ok(rj(DESKF).phoneAlerts === true && /^ccdesk-[0-9a-f]{32}$/.test(t || ''), 'topic ' + t); ok((await R(`$('setPage').textContent`)).includes(t), 'channel name not shown');
     await R(`document.querySelector('.sw[data-k="desk.phoneAlerts"]').click()`); await sleep(500); ok(!(await R(`!!$('phoneTest')`)) && rj(DESKF).ntfyTopic === t, 'off should hide setup and keep the channel');
     await R(`$('setClose').click()`);
+  });
+  await flow('30 session names: tab takes the real title, scripted runs hidden, stock prompts and /clear never name a chat', async () => {
+    const dir = path.join(os.homedir(), '.claude/projects/-namefix'); fs.mkdirSync(dir, { recursive: true }); const id = n => `22222222-2222-4222-8222-00000000000${n}`;
+    const U = (t, extra = {}) => JSON.stringify({ type: 'user', cwd: os.homedir(), message: { content: t }, ...extra });
+    fs.writeFileSync(path.join(dir, id(1) + '.jsonl'), [U('/clear'), U('Fix the login page')].join('\n') + '\n');
+    fs.writeFileSync(path.join(dir, id(2) + '.jsonl'), [U('You are an autonomous worker', { entrypoint: 'sdk-cli' })].join('\n') + '\n');
+    fs.writeFileSync(path.join(dir, id(3) + '.jsonl'), [U('Write a handoff note so a fresh session can continue'), U('Build the sushi game')].join('\n') + '\n');
+    fs.writeFileSync(path.join(dir, id(4) + '.jsonl'), [U('Write a handoff note so a fresh session can continue')].join('\n') + '\n');
+    await R(`refresh()`); await sleep(500); let it = await items();
+    ok(it.includes('Fix the login page'), '/clear named a chat: ' + it.slice(0, 6)); ok(it.includes('Build the sushi game'), 'stock handoff prompt named a chat'); ok(it.includes('Handoff note'), 'handoff-only chat name'); ok(!it.includes('You are an autonomous worker'), 'scripted run should be hidden');
+    await R(`$('showEmpty').click()`); await sleep(300); ok((await items()).includes('You are an autonomous worker'), 'Show all should reveal scripted runs'); await R(`$('showEmpty').click()`); await sleep(200);
+    await R(`$('new').click()`); await sleep(400); const k = await R(`active`); ok(await R(`$('title').textContent`) === 'New session', 'starts as New session');
+    await R(`tabs[${JSON.stringify(k)}].sessionId = ${JSON.stringify(id(1))}; syncTabTitles()`); await sleep(150); ok(await R(`tabs[${JSON.stringify(k)}].title`) === 'Fix the login page' && await R(`$('title').textContent`) === 'Fix the login page', 'open tab did not take the real title');
+    await R(`closeTab(${JSON.stringify(k)})`);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');

@@ -16,7 +16,8 @@ function textOf(l) {
   const c = l.message && l.message.content;
   return typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => (x && x.text) || '').join(' ') : '';
 }
-const isReal = t => (t = t.trim()) && !t.startsWith('<') && !t.startsWith('[Image') && !/^caveat/i.test(t);
+const isReal = t => (t = t.trim()) && !t.startsWith('<') && !t.startsWith('[Image') && !/^caveat/i.test(t) && !/^\/[\w:.-]+$/.test(t); // bare slash commands like /clear say nothing about the chat
+const HANDOFF = /^write a handoff note so a fresh/i; // a stock instruction, so the next real prompt names the chat better
 
 // ponytail: head/tail 256KB parsed; a mid-file /rename is found by scanning the whole file for the last custom-title line (files <= 256MB, 23MB ~ tens of ms). Bigger files: head+tail only.
 const cache = new Map();
@@ -34,15 +35,16 @@ function meta(f) {
       if (i === 0) break;
     }
   }
-  let custom, ai, first, cwd;
+  let custom, ai, first, cwd, handoff, auto;
   for (const l of rows) {
     if (l.type === 'custom-title' && typeof l.customTitle === 'string') custom = l.customTitle;
     if (l.type === 'ai-title' && typeof l.aiTitle === 'string') ai = l.aiTitle;
     if (!cwd && typeof l.cwd === 'string' && l.cwd) cwd = l.cwd;
-    if (!first && l.type === 'user') { const t = textOf(l); if (isReal(t)) first = t.trim().replace(/\s+/g, ' '); }
+    if (l.entrypoint === 'sdk-cli') auto = true; // started by a script (`claude -p`), not typed by a person
+    if (!first && l.type === 'user') { const t = textOf(l); if (isReal(t)) { if (HANDOFF.test(t.trim())) handoff = true; else first = t.trim().replace(/\s+/g, ' '); } }
   }
   const m = { id: path.basename(f, '.jsonl'), file: f, cwd: cwd || HOME, mtime: st.mtimeMs, size: st.size,
-              title: custom || ai || (first ? first.slice(0, 80) : '(empty session)'), empty: !first };
+              title: custom || ai || (first ? first.slice(0, 80) : handoff ? 'Handoff note' : '(empty session)'), empty: !first && !handoff, auto: !!auto };
   cache.set(f, m); return m;
 }
 

@@ -111,7 +111,7 @@
     <input id="q" placeholder="Search sessions…">
   </div>
   <div id="list"></div>
-  <div id="foot"><button id="extrasBtn">Agents &amp; skills</button><button id="showEmpty">Show empty</button></div>
+  <div id="foot"><button id="extrasBtn">Agents &amp; skills</button><button id="showEmpty" title="Also show empty sessions and automated background runs">Show all</button></div>
   <div id="acctRow"><button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button><button id="optBtn" title="Options" aria-label="Options">⚙︎</button></div>
 </div>
 <div id="main">
@@ -180,7 +180,7 @@ function render() {
       html += `<div class="it ${k===active?'on':''}" data-key="${esc(k)}"><span class="dot ${statusOf(t.sessionId,k)}"></span>
         <span class="t">${esc(t.title)}</span><span class="x" data-close="${esc(k)}">✕</span></div>`; }
   }
-  const shown = sessions.filter(s => (showEmpty || !s.empty || s.pinned) &&
+  const shown = sessions.filter(s => (showEmpty || (!s.empty && !s.auto) || s.pinned) &&
     (!q || s.title.toLowerCase().includes(q) || s.cwd.toLowerCase().includes(q)));
   const row = s => `<div class="it ${s.empty?'empty':''}" data-id="${esc(s.id)}" title="Double-click to rename">
       <span class="dot ${statusOf(s.id)}"></span><span class="t">${esc(s.title)}</span>
@@ -197,7 +197,8 @@ async function refresh() { const r = await ipc.invoke('list', limit); sessions =
 async function refreshLive() {
   liveState = await ipc.invoke('live');
   notify();
-  for (const t of Object.values(tabs)) { const v = liveState.byPid[t.pid]; if (v && v.id) t.sessionId = v.id; }
+  for (const t of Object.values(tabs)) { const v = liveState.byPid[t.pid]; if (v && v.id && v.id !== t.sessionId) { t.sessionId = v.id; t.title = 'New session'; } } // a new id means /clear or a new chat
+  syncTabTitles();
   render();
 }
 
@@ -226,6 +227,16 @@ function openTab(sessionId, cwd, title) {
   ipc.invoke('open', key, cwd, sessionId, tb.term.cols, tb.term.rows, title).then(pid => tabs[key] && (tabs[key].pid = pid))
     .catch(err => tabs[key] && tabs[key].term.write(`\r\n\x1b[31mCouldn't start this session: ${err.message}\x1b[0m\r\n`));
   show(key);
+}
+
+// A tab starts as "New session" and takes its real title once the session has one.
+function syncTabTitles() {
+  let changed = false;
+  for (const t of Object.values(tabs)) { const s = sessions.find(x => x.id === t.sessionId); if (s && !s.empty && s.title !== t.title) { t.title = s.title; changed = true; } }
+  if (!changed) return;
+  if (active && tabs[active]) $('title').textContent = tabs[active].title;
+  document.querySelectorAll('.paneHead[data-pane]').forEach(h => { const k = panes[+h.dataset.pane]; if (k && tabs[k]) h.textContent = tabs[k].title; });
+  render();
 }
 
 function makeTab(key, sessionId, cwd, title) {
@@ -341,7 +352,7 @@ $('list').addEventListener('dblclick', e => {
 });
 $('q').oninput = render;
 $('new').onclick = () => openTab(null, (active && tabs[active].cwd) || HOME, 'New session');
-$('showEmpty').onclick = () => { showEmpty = !showEmpty; $('showEmpty').textContent = showEmpty ? 'Hide empty' : 'Show empty'; render(); };
+$('showEmpty').onclick = () => { showEmpty = !showEmpty; $('showEmpty').textContent = showEmpty ? 'Show less' : 'Show all'; render(); };
 $('rewind').onclick = () => { if (!active) return; ipc.send('write', active, '/rewind'); setTimeout(() => ipc.send('write', active, '\r'), 150); tabs[active].term.focus(); };
 $('extrasBtn').onclick = async () => {
   const p = $('panel'); if (!p.hidden) return p.hidden = true;
