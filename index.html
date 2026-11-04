@@ -163,7 +163,7 @@ function render() {
   if (pinned.length) html += '<div class="grp">Pinned</div>' + pinned.map(row).join('');
   if (rest.length) html += '<div class="grp">Recent</div>' + rest.map(row).join('');
   if (!q && total > limit) html += `<button id="more" style="width:100%;margin-top:8px;text-align:center">Load more (${total - limit} older)</button>`;
-  list.innerHTML = html || '<div class="grp">No sessions match</div>';
+  list.innerHTML = html || `<div class="grp">${!q && !total ? 'No sessions yet — click New session to start' : 'No sessions match'}</div>`;
 }
 
 async function refresh() { const r = await ipc.invoke('list', limit); sessions = r.items; total = r.total; render(); }
@@ -305,7 +305,8 @@ function runCmd(cmd) {
   if (active) return send(active);
   openTab(null, HOME, 'New session'); const k = active; setTimeout(() => tabs[k] && send(k), 4000); // ponytail: fixed wait for claude to boot
 }
-ipc.invoke('account').then(a => { $('acctMail').textContent = a.email || 'Account'; $('acctPlan').textContent = a.plan || ''; $('menuMail').textContent = a.email || ''; });
+const refreshAcct = () => ipc.invoke('account').then(a => { $('acctMail').textContent = a.email || 'Account'; $('acctPlan').textContent = a.plan || ''; $('menuMail').textContent = a.email || ''; });
+refreshAcct(); setInterval(refreshAcct, 3000); // picks up /login without a restart
 $('acct').onclick = e => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; $('menu').querySelectorAll('.sure').forEach(x => x.classList.remove('sure')); };
 document.addEventListener('click', e => { if (!$('menu').contains(e.target)) $('menu').hidden = true; });
 $('menu').addEventListener('click', e => {
@@ -354,15 +355,15 @@ async function loadConn() {
   $('connList').innerHTML = list.length ? list.map(x => row(esc(x.name), '', `<span style="color:${/Connected/.test(x.state) ? 'var(--idle)' : 'var(--busy)'}">${esc(x.state)}</span>`)).join('')
     : 'Could not read the list. Try "Check again".';
 }
-async function openSettings(page) {
+async function openSettings(page, keepMsg) {
   ST = await ipc.invoke('settings'); if (page) setPageName = page;
   document.querySelectorAll('#setNav .nv').forEach(n => n.classList.toggle('on', n.dataset.p === setPageName));
-  $('setPage').innerHTML = PAGES[setPageName](ST.claude, ST.desk); $('setMsg').textContent = ''; $('set').hidden = false; if (setPageName === 'conn') loadConn();
+  $('setPage').innerHTML = (ST.claude.__error ? '<div style="color:var(--wait);margin-bottom:12px">Your settings.json can\'t be read (invalid JSON), so nothing here will be saved until it\'s fixed</div>' : '') + PAGES[setPageName](ST.claude, ST.desk); if (!keepMsg) $('setMsg').textContent = ''; $('set').hidden = false; if (setPageName === 'conn') loadConn();
 }
 async function saveSetting(k, v) {
   try { await ipc.invoke('setSetting', k, v); $('setMsg').style.color = 'var(--idle)'; $('setMsg').textContent = 'Saved ✓';
         ST = await ipc.invoke('settings'); applyDesk(); }
-  catch (e) { $('setMsg').style.color = 'var(--wait)'; $('setMsg').textContent = 'Not saved: ' + e.message; openSettings(); }
+  catch (e) { $('setMsg').style.color = 'var(--wait)'; $('setMsg').textContent = 'Not saved: ' + e.message; openSettings(null, true); }
 }
 function applyDesk() {
   const d = (ST && ST.desk) || {}; deskPrefs = d;

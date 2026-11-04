@@ -72,7 +72,7 @@ ipcMain.handle('doUpdate', async () => {
   const bundle = (app.getPath('exe').match(/^(.*?\.app)\//) || [])[1];
   return new Promise(res => execFile(process.env.SHELL || '/bin/zsh', ['-ilc', './install.sh --update'],
     { cwd: __dirname, timeout: 600000, env: { ...process.env, ...(bundle ? { CC_DESK_APP: bundle } : {}) } }, (err, out, errOut) => {
-      if (err) return res('failed: ' + String(errOut || err.message).trim().split('\n').pop());
+      if (err) return res('failed: ' + String(errOut || out || err.message).trim().split('\n').filter(Boolean).pop());
       quitOK = true; app.relaunch(); app.exit(0);
     }));
 });
@@ -89,11 +89,13 @@ ipcMain.handle('open', (e, key, cwd, resumeId, cols, rows) => {
   if (resumeId && !/^[0-9a-f-]{36}$/.test(resumeId)) throw new Error('bad session id');
   // unset: a CLAUDE_CODE_OAUTH_TOKEN exported in the shell profile (long-lived token for scripts) hides the claude.ai connectors; use the normal login instead.
   const cmd = 'unset CLAUDE_CODE_OAUTH_TOKEN; exec claude' + (resumeId ? ' --resume ' + resumeId : '');
+  const missing = !require('fs').existsSync(cwd) && cwd; if (missing) cwd = S.HOME;
   const p = pty.spawn(process.env.SHELL || '/bin/zsh', ['-ilc', cmd], {
     name: 'xterm-256color', cols, rows, cwd,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' },
   });
   ptys[key] = p;
+  if (missing) win.webContents.send('data', key, `This session's folder no longer exists: ${missing}. Starting in your home folder instead.\r\n`);
   p.onData(d => !win.isDestroyed() && win.webContents.send('data', key, d));
   p.onExit(() => { delete ptys[key]; !win.isDestroyed() && win.webContents.send('exit', key); });
   return p.pid;

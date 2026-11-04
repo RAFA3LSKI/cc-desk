@@ -2,7 +2,14 @@
 const fs = require('fs'), path = require('path'), os = require('os');
 const FILE = path.join(os.homedir(), '.claude/settings.json');
 const DESK = path.join(os.homedir(), '.claude-desk.json');
-const read = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
+const read = f => {
+  let t; try { t = fs.readFileSync(f, 'utf8'); } catch { return {}; }
+  try { return JSON.parse(t); } catch (e) {
+    const bk = f + '.corrupt-' + new Date().toISOString().slice(0, 10); // keep what the user had before anything can overwrite it
+    if (f === DESK && !fs.existsSync(bk)) fs.writeFileSync(bk, t);
+    return { __error: e.message };
+  }
+};
 
 const oneOf = list => v => list.includes(v);
 const bool = v => typeof v === 'boolean';
@@ -18,12 +25,12 @@ const ALLOWED = {
 
 function get() {
   const s = read(FILE);
-  return { claude: s, desk: { notify: true, tips: true, fontSize: 13, ...read(DESK) } };
+  return { claude: s, desk: { notify: true, tips: true, fontSize: 13, ...read(DESK), __error: undefined } };
 }
 
 function set(key, value) {
   if (key.startsWith('desk.')) {
-    const k = key.slice(5), d = read(DESK);
+    const k = key.slice(5), d = read(DESK); delete d.__error;
     if (!((k === 'notify' || k === 'tips') && bool(value)) && !(k === 'fontSize' && Number.isInteger(value) && value >= 10 && value <= 22))
       throw new Error('bad app setting');
     d[k] = value; fs.writeFileSync(DESK, JSON.stringify(d, null, 2)); return;
@@ -31,7 +38,8 @@ function set(key, value) {
   const isPlugin = key.startsWith('enabledPlugins.');
   if (!(isPlugin ? bool(value) : ALLOWED[key] && ALLOWED[key](value))) throw new Error('not allowed: ' + key);
   const s = read(FILE);
-  if (!Object.keys(s).length) throw new Error('settings.json unreadable, not writing');
+  if (!Object.keys(s).length || s.__error) throw new Error('settings.json unreadable, not writing');
+  try { fs.accessSync(FILE, fs.constants.W_OK); } catch { throw new Error('settings.json is read-only, not changing it'); }
   const backup = FILE + '.desk-backup-' + new Date().toISOString().slice(0, 10);
   if (!fs.existsSync(backup)) fs.copyFileSync(FILE, backup);
   if (isPlugin) {

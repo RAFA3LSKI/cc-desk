@@ -7,6 +7,7 @@ UPDATE=$([ "${1:-}" = "--update" ] && echo 1 || echo 0)
 
 [ "$(uname)" = Darwin ] || { echo "CC Desk is macOS only."; exit 1; }
 command -v node >/dev/null || { echo "Needs Node.js 20+ (https://nodejs.org)."; exit 1; }
+NV=$(node -v); NV=${NV#v}; [ "${NV%%.*}" -ge 20 ] 2>/dev/null || { echo "Needs Node.js 20+ (you have v$NV). Update from https://nodejs.org"; exit 1; }
 command -v claude >/dev/null || { echo "Needs Claude Code installed first (https://docs.claude.com/en/docs/claude-code)."; exit 1; }
 xcode-select -p >/dev/null 2>&1 || { echo "Needs Apple's command line tools: run  xcode-select --install  then try again."; exit 1; }
 

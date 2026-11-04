@@ -14,22 +14,31 @@ function chunk(f, start, len) {
 const parse = s => s.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 function textOf(l) {
   const c = l.message && l.message.content;
-  return typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => x.text || '').join(' ') : '';
+  return typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => (x && x.text) || '').join(' ') : '';
 }
 const isReal = t => (t = t.trim()) && !t.startsWith('<') && !t.startsWith('[Image') && !/^caveat/i.test(t);
 
-// ponytail: titles read from the first+last 256KB only; a /rename buried mid-file in a huge session is missed.
+// ponytail: head/tail 256KB parsed; a mid-file /rename is found by scanning the whole file for the last custom-title line (files <= 256MB, 23MB ~ tens of ms). Bigger files: head+tail only.
 const cache = new Map();
 function meta(f) {
   const st = fs.statSync(f), hit = cache.get(f);
   if (hit && hit.mtime === st.mtimeMs) return hit;
-  const rows = [...parse(chunk(f, 0, Math.min(st.size, CHUNK))),
-                ...(st.size > CHUNK ? parse(chunk(f, st.size - CHUNK, CHUNK)) : [])];
+  let head = chunk(f, 0, Math.min(st.size, CHUNK));
+  if (st.size > CHUNK && !head.includes('\n')) head = chunk(f, 0, Math.min(st.size, 8 * 1024 * 1024)); // huge first prompt: read to the first newline
+  const rows = [...parse(head), ...(st.size > CHUNK ? parse(chunk(f, st.size - CHUNK, CHUNK)) : [])];
+  if (st.size > CHUNK && st.size <= 256 * 1024 * 1024) {
+    const b = fs.readFileSync(f), key = '"type":"custom-title"';
+    for (let i = b.lastIndexOf(key); i >= 0; i = b.lastIndexOf(key, i - 1)) {
+      const s = b.lastIndexOf('\n', i) + 1, e = b.indexOf('\n', i), l = parse(b.toString('utf8', s, e < 0 ? b.length : e))[0];
+      if (l && l.type === 'custom-title') { rows.push(l); break; }
+      if (i === 0) break;
+    }
+  }
   let custom, ai, first, cwd;
   for (const l of rows) {
-    if (l.type === 'custom-title') custom = l.customTitle;
-    if (l.type === 'ai-title') ai = l.aiTitle;
-    if (!cwd && l.cwd) cwd = l.cwd;
+    if (l.type === 'custom-title' && typeof l.customTitle === 'string') custom = l.customTitle;
+    if (l.type === 'ai-title' && typeof l.aiTitle === 'string') ai = l.aiTitle;
+    if (!cwd && typeof l.cwd === 'string' && l.cwd) cwd = l.cwd;
     if (!first && l.type === 'user') { const t = textOf(l); if (isReal(t)) first = t.trim().replace(/\s+/g, ' '); }
   }
   const m = { id: path.basename(f, '.jsonl'), file: f, cwd: cwd || HOME, mtime: st.mtimeMs, size: st.size,
@@ -39,7 +48,7 @@ function meta(f) {
 
 function list(limit = 300) {
   const files = [];
-  for (const d of fs.readdirSync(PROJ)) {
+  for (const d of (() => { try { return fs.readdirSync(PROJ); } catch { return []; } })()) {
     const dir = path.join(PROJ, d);
     let names; try { names = fs.readdirSync(dir); } catch { continue; }
     for (const n of names) if (n.endsWith('.jsonl')) files.push(path.join(dir, n));
@@ -47,13 +56,13 @@ function list(limit = 300) {
   const pins = new Set(readJSON(CONF, {}).pins || []);
   const all = files.map(f => ({ f, t: fs.statSync(f).mtimeMs })).sort((a, b) => b.t - a.t);
   const keep = all.filter((x, i) => i < limit || pins.has(path.basename(x.f, '.jsonl')));
-  return { total: all.length, items: keep.map(({ f }) => { const m = { ...meta(f) }; m.pinned = pins.has(m.id); return m; }) };
+  return { total: all.length, items: keep.flatMap(({ f }) => { try { const m = { ...meta(f) }; m.pinned = pins.has(m.id); return [m]; } catch { return []; } }) }; // one unreadable file is skipped
 }
 
 // Live status: Claude Code writes ~/.claude/sessions/<pid>.json with status busy/idle/waiting.
 function live() {
   const byId = {}, byPid = {};
-  for (const n of fs.readdirSync(LIVE)) {
+  for (const n of (() => { try { return fs.readdirSync(LIVE); } catch { return []; } })()) {
     if (!/^\d+\.json$/.test(n)) continue;
     const s = readJSON(path.join(LIVE, n), null);
     if (!s) continue;
