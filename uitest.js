@@ -262,7 +262,7 @@ async function run() {
     await R(`$('setClose').click()`); await sleep(100); ok(!(await vis('set')), 'Usage page did not close');
   });
   await flow('28 split view: layouts, focus, divider, closing', async () => {
-    await R(`$('setClose').click()`); while (await R(`Object.keys(tabs).length`) < 3) { await R(`$('new').click()`); await sleep(300); }
+    await R(`$('setClose').click()`); while (await R(`Object.keys(tabs).length`) < 4) { await R(`$('new').click()`); await sleep(300); }
     const L = async l => { await R(`document.querySelector('#layouts [data-l="${l}"]').click()`); await sleep(200); };
     const rects = () => R(`[...document.querySelectorAll('.term')].filter(e => getComputedStyle(e).visibility === 'visible').map(e => { const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; })`);
     const apart = (a, b) => a.r <= b.l + 1 || b.r <= a.l + 1 || a.b <= b.t + 1 || b.b <= a.t + 1;
@@ -271,6 +271,8 @@ async function run() {
     await L('cols3'); r = await rects(); ok(r.length === 3 && apart(r[0], r[1]) && apart(r[1], r[2]) && Math.abs(r[0].t - r[2].t) < 2, 'three across ' + JSON.stringify(r));
     await L('top1'); r = await rects(); ok(r.length === 3, 'top1 count ' + r.length); { const s = [...r].sort((a, b) => a.t - b.t); ok(s[0].w > s[1].w * 1.5 && Math.abs(s[1].t - s[2].t) < 2 && apart(s[1], s[2]) && apart(s[0], s[1]), 'one above two ' + JSON.stringify(s)); }
     await L('bottom1'); r = await rects(); ok(r.length === 3, 'bottom1 count ' + r.length); { const s = [...r].sort((a, b) => b.t - a.t); ok(s[0].w > s[1].w * 1.5 && Math.abs(s[1].t - s[2].t) < 2 && apart(s[1], s[2]), 'one below two ' + JSON.stringify(s)); }
+    await L('grid4'); r = await rects(); ok(r.length === 4 && r.every((x, i) => r.every((y, j) => i === j || apart(x, y))) && r.every(x => x.w > 100 && x.h > 50), 'two by two ' + JSON.stringify(r));
+    await L('bottom1');
     ok(await R(`document.querySelectorAll('.paneHead').length`) === 3, 'each pane has a name strip');
     const fitted = await R(`panes.every(k => { const t = tabs[k], d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; })`); ok(fitted, 'a pane terminal is not fitted to its pane');
     await L('cols2'); const keys = await R(`Object.keys(tabs)`), out = await R(`Object.keys(tabs).find(k => !panes.includes(k))`), kept = await R(`panes.find(k => k !== active)`);

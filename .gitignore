@@ -4,3 +4,4 @@ icon.icns
 *.log
 .DS_Store
 .superpowers/
+_misc/
