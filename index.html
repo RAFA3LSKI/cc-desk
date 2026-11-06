@@ -239,6 +239,41 @@ function syncTabTitles() {
   render();
 }
 
+// Claude's prompt box lives inside the terminal, so it has no real select-all. Find it on screen: "❯" right under a rule line, up to the next rule.
+function promptSpan(term) {
+  const b = term.buffer.active, text = i => { const l = b.getLine(i); return l ? l.translateToString(true) : ''; }, rule = i => /^\s*[─━╌]{5,}/.test(text(i));
+  for (let i = b.length - 1; i > 0; i--) {
+    if (!/^\s*❯/.test(text(i)) || !rule(i - 1)) continue;
+    let end = i; while (end + 1 < b.length && !rule(end + 1)) end++;
+    if (end + 1 >= b.length) continue;
+    const col = text(i).indexOf('❯') + 2, len = (end - i) * term.cols + text(end).length - col;
+    return len > 0 ? { col, row: i, len } : null;
+  }
+  return null;
+}
+// Cmd+A highlights the prompt; while it's highlighted Backspace/Delete clears it and typing replaces it.
+// Claude has no safe clear-prompt key (ctrl+L only redraws; Esc/ctrl+C interrupt a running turn), so clearing sends one
+// Backspace + one forward-Delete per selected character: empties the box wherever the cursor is; extras are no-ops.
+function promptSelectKeys(term, key) {
+  let picked = null;
+  term.attachCustomKeyEventHandler(e => {
+    if (e.type !== 'keydown') return true;
+    if (e.metaKey && !e.ctrlKey && !e.altKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault(); const p = promptSpan(term); term.clearSelection(); picked = null;
+      if (p) { term.select(p.col, p.row, p.len); picked = term.getSelection(); }
+      return false;
+    }
+    if (!picked || ['Shift', 'Meta', 'Control', 'Alt', 'CapsLock'].includes(e.key) || e.metaKey) return true;
+    const live = term.getSelection() === picked, n = picked.length; picked = null; if (!live) return true;
+    const wipe = () => ipc.send('write', key, '\x7f'.repeat(n) + '\x1b[3~'.repeat(n));
+    term.clearSelection();
+    if (e.ctrlKey || e.altKey) return true;
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); wipe(); return false; }
+    if (e.key.length === 1) wipe();
+    return true;
+  });
+}
+
 function makeTab(key, sessionId, cwd, title) {
   const el = document.createElement('div'); el.className = 'term'; $('terms').appendChild(el);
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
@@ -246,6 +281,7 @@ function makeTab(key, sessionId, cwd, title) {
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
   el.addEventListener('mousedown', () => { if (active !== key) show(key); }, true);
   term.onData(d => ipc.send('write', key, d));
+  promptSelectKeys(term, key);
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
   return tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
 }

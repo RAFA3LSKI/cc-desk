@@ -305,6 +305,23 @@ async function run() {
     await R(`tabs[${JSON.stringify(k)}].sessionId = ${JSON.stringify(id(1))}; syncTabTitles()`); await sleep(150); ok(await R(`tabs[${JSON.stringify(k)}].title`) === 'Fix the login page' && await R(`$('title').textContent`) === 'Fix the login page', 'open tab did not take the real title');
     await R(`closeTab(${JSON.stringify(k)})`);
   });
+  await flow('Cmd+A selects the prompt, Backspace clears it', async () => {
+    await R(`$('new').click()`); await sleep(400);
+    const T = `tabs[active].term`, key = (k, c, meta) => R(`${T}.textarea.dispatchEvent(new KeyboardEvent('keydown', {key:${JSON.stringify(k)}, keyCode:${c}, metaKey:${!!meta}, bubbles:true, cancelable:true}))`);
+    const screen = t => R(`new Promise(r => { ${T}.reset(); ${T}.write(${JSON.stringify(t)}, r); })`);
+    await R(`window.__w = []; { const o = ipc.send.bind(ipc); ipc.send = (c, k, d) => { if (c === 'write') __w.push(d); else o(c, k, d); }; window.__o = o; } 0`);
+    const box = 'earlier output\r\n> old line\r\n' + '─'.repeat(40) + '\r\n❯ hello big prompt\r\n  second line\r\n' + '─'.repeat(40) + '\r\n  ? for shortcuts';
+    await screen(box); await key('a', 65, true);
+    const sel = await R(`${T}.getSelection()`); ok(sel.includes('hello big prompt') && sel.includes('second line') && !sel.includes('old line') && !sel.includes('shortcuts'), 'selection: ' + sel);
+    await key('Shift', 16); ok(await R(`${T}.hasSelection()`), 'holding Shift dropped the selection');
+    const wipe = '\x7f'.repeat(sel.length) + '\x1b[3~'.repeat(sel.length);
+    await key('Backspace', 8); ok((await R(`__w.join('')`)) === wipe, 'Backspace sent ' + JSON.stringify(await R(`__w`))); ok(!(await R(`${T}.hasSelection()`)), 'selection stayed after clearing');
+    await R(`__w.length = 0`); await key('Backspace', 8); ok((await R(`__w.join('')`)) === '\x7f', 'second Backspace should be normal: ' + JSON.stringify(await R(`__w`)));
+    await screen(box); await key('a', 65, true); await R(`__w.length = 0`); await key('x', 88); ok((await R(`__w[0]`)) === wipe, 'typing over should clear first: ' + JSON.stringify(await R(`__w`)));
+    await screen(box); await key('a', 65, true); await R(`${T}.select(0, 0, 5); __w.length = 0`); await key('Backspace', 8); ok((await R(`__w.join('')`)) === '\x7f', 'a mouse selection must not arm clearing: ' + JSON.stringify(await R(`__w`)));
+    await screen('Do you want to proceed?\r\n❯ 1. Yes\r\n  2. No'); await key('a', 65, true); ok(!(await R(`${T}.hasSelection()`)), 'menu picked up as a prompt');
+    await R(`ipc.send = __o; 0`);
+  });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');
   note('25 Update & restart click', 'NOT_TESTED_runs install.sh and relaunches');
