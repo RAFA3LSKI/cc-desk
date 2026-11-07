@@ -337,18 +337,20 @@ async function run() {
     const J = o => JSON.stringify(o) + '\n';
     fs.writeFileSync(f, J({ type: 'user', cwd: os.homedir(), message: { content: 'hi' } }) + J({ type: 'user', message: { content: [{ type: 'text', text: 'look [Image #1]' }, img] } })
       + J({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/Users/x/Downloads/shot one.png' } }] } })
-      + J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: [img] }] } }));
+      + J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: [img] }] } })
+      + J({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu2', name: 'Read', input: { file_path: '/Users/x/Downloads/two.png' } }] } })
+      + J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu2', content: [img] }] } }));
     wc.setBackgroundThrottling(false); // hidden test window: no animation frames otherwise, so xterm never draws decorations
     await R(`$('new').click()`); await sleep(400); const k = JSON.stringify(await R(`active`)), T = `tabs[${k}]`;
     const w0 = await R(`${T}.el.getBoundingClientRect().width`);
-    const SCREEN = '\x1b[2J\x1b[3J\x1b[H❯ look [Image #1]\r\n\r\n⏺ Reading 1 file\r\n  ⎿  Downloads/shot one.png\r\n\r\n⏺ Here is what it shows.\r\n' + 'reply line\r\n'.repeat(6) + '──────────\r\n❯ [Image #1] typing\r\n──────────\r\n';
+    const SCREEN = '\x1b[2J\x1b[3J\x1b[H❯ look [Image #1]\r\n\r\n⏺ Reading 1 file\r\n  ⎿  Downloads/shot one.png\r\n\r\n⏺ Here is what it shows.\r\n\r\n⏺ Read 1 file, listed 1 directory (ctrl+o to expand)\r\n\r\n⏺ I opened two.png for you.\r\n' + 'reply line\r\n'.repeat(6) + '──────────\r\n❯ [Image #1] typing\r\n──────────\r\n';
     await R(`${T}.term.write(${JSON.stringify(SCREEN)}); ${T}.sessionId = '${id}'; pollImages()`); await sleep(900);
     const state = async () => JSON.parse(await R(`JSON.stringify((() => { const t = ${T}, b = t.term.buffer.active, txt = i => b.getLine(i).translateToString(true);
       const ims = [...t.el.querySelectorAll('.ximg')].map(i => { const r = i.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, ok: i.complete && i.naturalWidth === 1, tip: i.title }; });
       return { lines: (t.decos || []).filter(d => !d.isDisposed).map(d => txt(d.marker.line).trim()), ims, el: t.el.getBoundingClientRect().toJSON() }; })())`));
     let r = await state();
-    ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', '⎿  Downloads/shot one.png']), 'thumbnails on wrong lines: ' + JSON.stringify(r.lines));
-    ok(r.ims.length === 2 && r.ims.every(i => i.ok && i.w <= 161 && i.h <= 73 && i.x > r.el.left && i.x < r.el.right && i.y > r.el.top && i.y < r.el.bottom), 'thumbnails not small/inside the terminal ' + JSON.stringify(r.ims));
+    ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', '⎿  Downloads/shot one.png', '⏺ Read 1 file, listed 1 directory (ctrl+o to expand)']), 'thumbnails on wrong lines: ' + JSON.stringify(r.lines));
+    ok(r.ims.length === 3 && r.ims.every(i => i.ok && i.w <= 161 && i.h <= 73 && i.x > r.el.left && i.x < r.el.right && i.y > r.el.top && i.y < r.el.bottom), 'thumbnails not small/inside the terminal ' + JSON.stringify(r.ims));
     ok(r.ims[0] && r.ims[0].tip.startsWith('Sent by you') && r.ims[1].tip.startsWith('Opened by Claude'), 'tips');
     ok(Math.abs(await R(`${T}.el.getBoundingClientRect().width`) - w0) < 1, 'terminal lost width');
     // real mouse click on the thumbnail (hit-testing through xterm), then close
@@ -356,7 +358,7 @@ async function run() {
     ok(await R(`getComputedStyle($('lb')).display`) === 'flex', 'clicking the thumbnail did not enlarge it'); await R(`$('lb').click()`); ok(await R(`getComputedStyle($('lb')).display`) === 'none', 'enlarged image did not close');
     // Claude redraws the whole screen (resize, /clear of the screen): thumbnails come back on the new lines
     await R(`${T}.term.write(${JSON.stringify(SCREEN)})`); await sleep(700); r = await state();
-    ok(r.lines.length === 2 && r.ims.length === 2, 'thumbnails lost after a redraw: ' + JSON.stringify(r.lines));
+    ok(r.lines.length === 3 && r.ims.length === 3, 'thumbnails lost after a redraw: ' + JSON.stringify(r.lines));
     await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
     await R(`closeTab(${k})`);
   });
