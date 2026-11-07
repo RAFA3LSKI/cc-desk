@@ -55,6 +55,7 @@ ipcMain.handle('live', () => S.live());
 ipcMain.handle('usage', (e, f) => S.usage(f));
 ipcMain.handle('usageData', () => require('./usage').get(p => win && !win.isDestroyed() && win.webContents.send('usageProgress', p)));
 ipcMain.handle('extras', () => S.extras());
+ipcMain.handle('images', (e, id, from) => S.images(id, from));
 ipcMain.handle('rename', (e, file, id, n) => S.rename(file, id, n));
 ipcMain.handle('account', () => { try { const a = JSON.parse(require('fs').readFileSync(require('path').join(S.HOME, '.claude.json'), 'utf8')).oauthAccount || {};
   return { email: a.emailAddress || '', plan: a.planDisplayName || '' }; } catch { return {}; } });
