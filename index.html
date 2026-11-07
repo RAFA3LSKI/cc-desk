@@ -48,11 +48,7 @@
   .xterm-viewport::-webkit-scrollbar { width:8px; } .xterm-viewport::-webkit-scrollbar-track { background:transparent; } .xterm-viewport::-webkit-scrollbar-thumb { background:#4a4945; border-radius:4px; }
   .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
   .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
-  .imgs { position:absolute; display:flex; flex-direction:column; gap:8px; overflow-y:auto; background:var(--side); border-left:1px solid var(--line); padding:6px; box-sizing:border-box; }
-  .imgs .ih { display:flex; align-items:center; justify-content:space-between; font-size:11.5px; color:var(--dim); flex:none; }
-  .imgs .ih button { padding:1px 7px; font-size:12px; }
-  .imgs img { width:100%; border-radius:6px; cursor:zoom-in; flex:none; border:1px solid var(--line); }
-  .imgs.min { padding:6px 2px; } .imgs.min img, .imgs.min .ih span { display:none; } .imgs.min .ih { flex-direction:column; }
+  .ximg { position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#1f1e1d; }
   #lb { position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.88); cursor:zoom-out; } #lb:not([hidden]) { display:flex; align-items:center; justify-content:center; }
   #lb img { max-width:96%; max-height:96%; object-fit:contain; }
   .paneEmpty { position:absolute; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:12px; }
@@ -214,26 +210,47 @@ async function refreshLive() {
   pollImages();
 }
 
-// Images in the chat (screenshots you paste or drop, images Claude opens) show in a strip on the right of that tab. Read from the transcript, every 2 s with the live poll.
+// Images in the chat (screenshots you paste, images Claude opens) show as small thumbnails on their own line in the terminal.
+// Claude Code only prints "[Image #1]" or the file name there, so the image data comes from the transcript (2 s live poll)
+// and is pinned to that line with an xterm decoration, which scrolls with the text.
 async function pollImages() {
   for (const t of Object.values(tabs)) {
     if (t.imgBusy || !t.sessionId) continue;
-    if (t.imgSid !== t.sessionId) { t.imgSid = t.sessionId; t.imgOff = 0; if (t.strip) { t.strip.remove(); t.strip = null; applyLayout(); } } // /clear: new chat, new strip
+    if (t.imgSid !== t.sessionId) { t.imgSid = t.sessionId; t.imgOff = 0; t.imgs = []; placeImages(t); } // /clear: new chat, no old images
     t.imgBusy = true;
     try {
       const sid = t.sessionId, r = await ipc.invoke('images', sid, t.imgOff || 0);
       if (t.imgSid !== sid || !Object.values(tabs).includes(t)) continue; // tab closed or /clear meanwhile
       t.imgOff = r.next; if (!r.imgs.length) continue;
-      const first = !t.strip;
-      if (first) { t.strip = document.createElement('div'); t.strip.className = 'imgs'; t.strip.style.visibility = 'hidden';
-        t.strip.innerHTML = '<div class="ih"><span></span><button title="Hide/show images">›</button></div>'; $('terms').appendChild(t.strip);
-        t.strip.querySelector('button').onclick = () => { t.imgMin = !t.imgMin; t.strip.classList.toggle('min', t.imgMin); t.strip.querySelector('button').textContent = t.imgMin ? '‹' : '›'; applyLayout(); if (tabs[active]) tabs[active].term.focus(); }; }
-      for (const m of r.imgs) { const im = new Image(); im.src = `data:${m.mime};base64,${m.data}`; im.title = m.opened ? 'Opened by Claude' : 'Sent by you';
-        im.onclick = () => { $('lb').querySelector('img').src = im.src; $('lb').hidden = false; }; t.strip.appendChild(im); }
-      const imgsEl = t.strip.querySelectorAll('img'); for (let i = 0; i < imgsEl.length - 40; i++) imgsEl[i].remove(); // ponytail: last 40 per tab
-      t.strip.querySelector('.ih span').textContent = `Images (${t.strip.querySelectorAll('img').length})`;
-      if (first) applyLayout(); t.strip.scrollTop = t.strip.scrollHeight;
+      t.imgs.push(...r.imgs.map(m => ({ src: `data:${m.mime};base64,${m.data}`, hint: m.hint, opened: m.opened })));
+      t.imgs = t.imgs.slice(-60); // ponytail: last 60 per tab kept in memory
+      placeImages(t);
     } catch {} finally { t.imgBusy = false; }
+  }
+}
+function placeImages(t) {
+  const term = t.term, b = term.buffer.active, imgs = t.imgs || [];
+  const box = promptSpan(term), stop = box ? box.row - 1 : b.length; // never the prompt box you're typing in
+  const lines = [];
+  for (let i = 0; i < stop; i++) { const l = b.getLine(i); if (!l) continue; const s = l.translateToString(true);
+    if (l.isWrapped && lines.length) lines[lines.length - 1].text += s; else lines.push({ row: i, text: s, end: s.trimEnd().length }); }
+  // Newest image goes to the newest line that names it.
+  const picks = [], from = {};
+  for (let j = imgs.length - 1; j >= 0; j--) { const h = imgs[j].hint; if (!h || b.type !== 'normal') continue;
+    for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) if (lines[i].text.includes(h)) { picks.push({ j, ln: lines[i] }); from[h] = i; break; }
+    if (from[h] === undefined) from[h] = -1; }
+  const sig = picks.map(p => p.ln.row + ':' + p.j).join() + '|' + term.cols + '|' + imgs.length;
+  if (sig === t.imgSig && (t.decos || []).every(d => !d.isDisposed)) return;
+  (t.decos || []).forEach(d => d.dispose()); t.decos = []; t.imgSig = sig;
+  const scr = t.el.querySelector('.xterm-screen'), cw = scr ? scr.getBoundingClientRect().width / term.cols : 8, room = Math.ceil(166 / (cw || 8)), perRow = {};
+  for (const { j, ln } of picks.reverse()) {
+    const k = perRow[ln.row] = (perRow[ln.row] || 0) + 1, x = Math.max(0, Math.min(ln.end + 2 + (k - 1) * room, term.cols - room));
+    const marker = term.registerMarker(ln.row - (b.baseY + b.cursorY)); if (!marker) continue;
+    const d = term.registerDecoration({ marker, x, width: 1, height: 1, layer: 'top' }); if (!d) { marker.dispose(); continue; }
+    d.onRender(el => { el.style.overflow = 'visible'; if (el.firstChild) return; const im = new Image(); im.src = imgs[j].src; im.className = 'ximg';
+      im.title = (imgs[j].opened ? 'Opened by Claude' : 'Sent by you') + ' · click to enlarge';
+      im.onmousedown = e => { e.stopPropagation(); e.preventDefault(); $('lb').querySelector('img').src = im.src; $('lb').hidden = false; }; el.appendChild(im); });
+    d.onDispose(() => marker.dispose()); t.decos.push(d);
   }
 }
 $('lb').onclick = () => { $('lb').hidden = true; if (tabs[active]) tabs[active].term.focus(); };
@@ -319,6 +336,7 @@ function makeTab(key, sessionId, cwd, title) {
   term.onData(d => ipc.send('write', key, d));
   promptSelectKeys(term, key);
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
+  let imgT; term.onWriteParsed(() => { clearTimeout(imgT); imgT = setTimeout(() => tabs[key] && placeImages(tabs[key]), 250); });
   return tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
 }
 
@@ -345,13 +363,12 @@ function applyLayout() {
   panes = panes.filter(k => k && tabs[k]).slice(0, n); // drop closed tabs, then fill the free panes with other open sessions
   for (const k of Object.keys(tabs)) if (panes.length < n && !panes.includes(k)) panes.push(k);
   document.querySelectorAll('.paneHead, .paneEmpty, .divider').forEach(x => x.remove());
-  for (const [k, t] of Object.entries(tabs)) if (!panes.includes(k)) { t.el.style.visibility = 'hidden'; if (t.strip) t.strip.style.visibility = 'hidden'; }
+  for (const [k, t] of Object.entries(tabs)) if (!panes.includes(k)) t.el.style.visibility = 'hidden';
   rects.forEach(([x, y, w, h], i) => {
     const k = panes[i], head = split ? 24 : 0;
     const place = (el, top, bottom, l, r) => Object.assign(el.style, { inset: 'auto', left: `calc(${pct(x)} + ${l}px)`, top: `calc(${pct(y)} + ${top}px)`, width: `calc(${pct(w)} - ${l + r}px)`, height: `calc(${pct(h)} - ${top + bottom}px)` });
     if (split) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); hd.textContent = k ? tabs[k].title : 'Empty'; hd.dataset.pane = i; place(hd, 0, 0, 0, 0); hd.style.height = '24px'; if (k) hd.onclick = () => show(k); $('terms').appendChild(hd); }
-    if (k) { const t = tabs[k], top = head + (split ? 6 : 8), sw = t.strip ? (t.imgMin ? 30 : 240) : 0; t.el.style.visibility = 'visible'; place(t.el, top, 4, split ? 8 : 12, 4 + sw); t.fit.fit();
-      if (t.strip) Object.assign(t.strip.style, { visibility: 'visible', left: `calc(${pct(x + w)} - ${sw}px)`, top: `calc(${pct(y)} + ${top}px)`, width: sw + 'px', height: `calc(${pct(h)} - ${top}px)` }); }
+    if (k) { const t = tabs[k]; t.el.style.visibility = 'visible'; place(t.el, head + (split ? 6 : 8), 4, split ? 8 : 12, 4); t.fit.fit(); }
     else if (split) { const em = document.createElement('div'); em.className = 'paneEmpty'; em.textContent = 'Start or click a session on the left'; place(em, head, 0, 0, 0); $('terms').appendChild(em); }
   });
   for (const [name, axis, pos, from, to] of paneDividers()) {
@@ -395,7 +412,7 @@ function show(key) {
 
 function closeTab(key) {
   const t = tabs[key]; if (!t) return;
-  ipc.send('kill', key); t.term.dispose(); t.el.remove(); if (t.strip) t.strip.remove(); delete tabs[key]; panes = panes.filter(k => k !== key);
+  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key]; panes = panes.filter(k => k !== key);
   show(panes[0] || Object.keys(tabs)[0] || null); refresh();
 }
 

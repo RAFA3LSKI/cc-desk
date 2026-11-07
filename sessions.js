@@ -114,7 +114,7 @@ function extras() {
 
 // Images in a session (pasted/dropped screenshots + images Claude opened with Read), read from its transcript from byte `from` on.
 // Only complete lines are read; `next` is where the next call starts. ponytail: base64 goes to the renderer as-is, fine for screenshots.
-const fileOf = new Map();
+const fileOf = new Map(), toolFile = new Map(); // ponytail: toolFile grows with every file-reading tool call while the app runs; small strings, fine
 function images(id, from = 0) {
   if (!/^[0-9a-f-]{36}$/.test(id)) return { next: 0, imgs: [] };
   let f = fileOf.get(id);
@@ -126,13 +126,17 @@ function images(id, from = 0) {
   const size = fs.statSync(f).size; if (size < from) from = 0; // file replaced: start over
   if (size === from) return { next: from, imgs: [] };
   const b = chunk(f, from, size - from), end = b.lastIndexOf('\n') + 1, imgs = [];
-  const walk = (x, tool) => { if (Array.isArray(x)) return x.forEach(v => walk(v, tool)); if (!x || typeof x !== 'object') return;
-    if (x.type === 'image' && x.source && x.source.type === 'base64' && /^image\/(png|jpe?g|gif|webp)$/.test(x.source.media_type)) imgs.push({ mime: x.source.media_type, data: x.source.data, opened: tool });
-    walk(x.content, tool || x.type === 'tool_result'); };
+  const push = (x, hint, opened) => x && x.type === 'image' && x.source && x.source.type === 'base64' && /^image\/(png|jpe?g|gif|webp)$/.test(x.source.media_type) && imgs.push({ mime: x.source.media_type, data: x.source.data, hint, opened });
   for (const line of b.slice(0, end).split('\n')) {
-    if (!line.includes('"image"')) continue;
+    if (!line.includes('"image"') && !line.includes('"tool_use"')) continue;
     let l; try { l = JSON.parse(line); } catch { continue; }
-    if (l.type === 'user' && l.message && !l.isMeta) walk(l.message.content, false);
+    const c = l.message && l.message.content; if (!Array.isArray(c) || l.isMeta) continue;
+    if (l.type === 'assistant') { for (const x of c) if (x && x.type === 'tool_use' && x.input) { const fp = x.input.file_path || x.input.path; if (typeof fp === 'string') toolFile.set(x.id, path.basename(fp)); } continue; }
+    if (l.type !== 'user') continue;
+    // Pasted: "[Image #N]" in the message text, in the same order as the images. Opened: the file name Claude Code prints on the Read line.
+    const tags = c.map(x => (x && x.type === 'text' && x.text) || '').join(' ').match(/\[Image #\d+\]/g) || []; let n = 0;
+    for (const x of c) { if (x && x.type === 'tool_result') { const ims = Array.isArray(x.content) ? x.content : []; for (const y of ims) push(y, toolFile.get(x.tool_use_id) || null, true); }
+      else if (x && x.type === 'image') push(x, tags[n++] || null, false); }
   }
   return { next: from + Buffer.byteLength(b.slice(0, end)), imgs };
 }

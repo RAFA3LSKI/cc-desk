@@ -331,26 +331,34 @@ async function run() {
     await screen('Do you want to proceed?\r\n❯ 1. Yes\r\n  2. No'); await key('a', 65, true); ok(!(await R(`${T}.hasSelection()`)), 'menu picked up as a prompt');
     await R(`ipc.send = __o; 0`);
   });
-  await flow('31 images: pasted + opened images show in a strip beside the chat, zoom, hide, /clear resets', async () => {
+  await flow('31 images: thumbnails sit on their own chat line inside the terminal, click enlarges, survive a redraw, never on the prompt box', async () => {
     const dir = path.join(os.homedir(), '.claude/projects/-imgs'); fs.mkdirSync(dir, { recursive: true }); const id = '33333333-3333-4333-8333-000000000001', f = path.join(dir, id + '.jsonl');
     const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', img = { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG } };
-    fs.writeFileSync(f, JSON.stringify({ type: 'user', cwd: os.homedir(), message: { content: 'look at this' } }) + '\n');
+    const J = o => JSON.stringify(o) + '\n';
+    fs.writeFileSync(f, J({ type: 'user', cwd: os.homedir(), message: { content: 'hi' } }) + J({ type: 'user', message: { content: [{ type: 'text', text: 'look [Image #1]' }, img] } })
+      + J({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'tu1', name: 'Read', input: { file_path: '/Users/x/Downloads/shot one.png' } }] } })
+      + J({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'tu1', content: [img] }] } }));
+    wc.setBackgroundThrottling(false); // hidden test window: no animation frames otherwise, so xterm never draws decorations
     await R(`$('new').click()`); await sleep(400); const k = JSON.stringify(await R(`active`)), T = `tabs[${k}]`;
-    await R(`${T}.sessionId = '${id}'; pollImages()`); await sleep(400); ok(await R(`!${T}.strip`), 'strip shown with no images');
     const w0 = await R(`${T}.el.getBoundingClientRect().width`);
-    fs.appendFileSync(f, JSON.stringify({ type: 'user', message: { content: [{ type: 'text', text: '[Image #1]' }, img] } }) + '\n');
-    await R(`pollImages()`); await sleep(500);
-    let r = JSON.parse(await R(`JSON.stringify((() => { const t = ${T}, a = t.el.getBoundingClientRect(), b = t.strip.getBoundingClientRect(), i = t.strip.querySelector('img'); return { vis: getComputedStyle(t.strip).visibility, n: t.strip.querySelectorAll('img').length, termR: a.right, stripL: b.left, stripW: b.width, w: a.width, imgW: i.getBoundingClientRect().width, loaded: i.complete && i.naturalWidth, label: t.strip.querySelector('.ih span').textContent, tip: i.title }; })())`));
-    ok(r.vis === 'visible' && r.n === 1 && r.loaded === 1, 'pasted image not shown ' + JSON.stringify(r)); ok(r.termR <= r.stripL + 1, 'strip covers the terminal'); ok(r.w < w0 - 200 && r.stripW > 200 && r.imgW > 150, 'no room made for the strip');
-    ok(r.label === 'Images (1)' && r.tip === 'Sent by you', 'label/tip ' + r.label + ' ' + r.tip);
-    fs.appendFileSync(f, JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: [img] }] } }) + '\n');
-    await R(`pollImages()`); await sleep(500); ok(await R(`${T}.strip.querySelectorAll('img').length`) === 2 && await R(`${T}.strip.querySelectorAll('img')[1].title`) === 'Opened by Claude', 'opened image not added once');
-    await R(`pollImages()`); await sleep(400); ok(await R(`${T}.strip.querySelectorAll('img').length`) === 2, 'images repeated on the next poll');
-    await R(`${T}.strip.querySelector('img').click()`); ok(await R(`getComputedStyle($('lb')).display`) === 'flex', 'click did not enlarge'); await R(`$('lb').click()`); ok(await R(`getComputedStyle($('lb')).display`) === 'none', 'enlarged image did not close');
-    await R(`${T}.strip.querySelector('button').click()`); await sleep(150); ok(await R(`${T}.strip.getBoundingClientRect().width`) === 30 && await R(`${T}.el.getBoundingClientRect().width`) > r.w + 150, 'hide did not give the room back');
-    ok(await R(`(() => { const t = ${T}, d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; })()`), 'terminal not refitted');
-    await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(300); ok(await R(`!${T}.strip`), '/clear kept the old images');
-    await R(`closeTab(${k})`); ok(!(await R(`document.querySelectorAll('.imgs').length`)), 'strip left behind after closing');
+    const SCREEN = '\x1b[2J\x1b[3J\x1b[H❯ look [Image #1]\r\n\r\n⏺ Reading 1 file\r\n  ⎿  Downloads/shot one.png\r\n\r\n⏺ Here is what it shows.\r\n' + 'reply line\r\n'.repeat(6) + '──────────\r\n❯ [Image #1] typing\r\n──────────\r\n';
+    await R(`${T}.term.write(${JSON.stringify(SCREEN)}); ${T}.sessionId = '${id}'; pollImages()`); await sleep(900);
+    const state = async () => JSON.parse(await R(`JSON.stringify((() => { const t = ${T}, b = t.term.buffer.active, txt = i => b.getLine(i).translateToString(true);
+      const ims = [...t.el.querySelectorAll('.ximg')].map(i => { const r = i.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, ok: i.complete && i.naturalWidth === 1, tip: i.title }; });
+      return { lines: (t.decos || []).filter(d => !d.isDisposed).map(d => txt(d.marker.line).trim()), ims, el: t.el.getBoundingClientRect().toJSON() }; })())`));
+    let r = await state();
+    ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', '⎿  Downloads/shot one.png']), 'thumbnails on wrong lines: ' + JSON.stringify(r.lines));
+    ok(r.ims.length === 2 && r.ims.every(i => i.ok && i.w <= 161 && i.h <= 73 && i.x > r.el.left && i.x < r.el.right && i.y > r.el.top && i.y < r.el.bottom), 'thumbnails not small/inside the terminal ' + JSON.stringify(r.ims));
+    ok(r.ims[0] && r.ims[0].tip.startsWith('Sent by you') && r.ims[1].tip.startsWith('Opened by Claude'), 'tips');
+    ok(Math.abs(await R(`${T}.el.getBoundingClientRect().width`) - w0) < 1, 'terminal lost width');
+    // real mouse click on the thumbnail (hit-testing through xterm), then close
+    wc.sendInputEvent({ type: 'mouseDown', x: Math.round(r.ims[1].x), y: Math.round(r.ims[1].y), button: 'left', clickCount: 1 }); wc.sendInputEvent({ type: 'mouseUp', x: Math.round(r.ims[1].x), y: Math.round(r.ims[1].y), button: 'left', clickCount: 1 }); await sleep(200);
+    ok(await R(`getComputedStyle($('lb')).display`) === 'flex', 'clicking the thumbnail did not enlarge it'); await R(`$('lb').click()`); ok(await R(`getComputedStyle($('lb')).display`) === 'none', 'enlarged image did not close');
+    // Claude redraws the whole screen (resize, /clear of the screen): thumbnails come back on the new lines
+    await R(`${T}.term.write(${JSON.stringify(SCREEN)})`); await sleep(700); r = await state();
+    ok(r.lines.length === 2 && r.ims.length === 2, 'thumbnails lost after a redraw: ' + JSON.stringify(r.lines));
+    await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
+    await R(`closeTab(${k})`);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');
