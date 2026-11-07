@@ -368,6 +368,9 @@ async function run() {
     await R(`${T}.term.write(${JSON.stringify(ALT)})`); await sleep(700); r = await state();
     ok(await R(`${T}.term.buffer.active.viewportY`) > 0, 'test setup: fullscreen buffer should start below line 0 here');
     ok(await R(`${T}.term.buffer.active.type`) === 'alternate', 'not on the alternate screen');
+    const off = await R(`(() => { const t = ${T}, scr = t.el.querySelector('.xterm-screen'), ch = scr.getBoundingClientRect().height / t.term.rows, top = scr.getBoundingClientRect().top, vy = t.term.buffer.active.viewportY;
+      return [...t.el.querySelectorAll('.ximg')].filter(i => i.style.display !== 'none').map(i => Math.round((i.getBoundingClientRect().top - top - 2) / ch - (+i.dataset.row - vy))); })()`);
+    ok(off.length && off.every(d => d === 0), 'thumbnail drawn on the wrong row (rows off: ' + off + ')');
     ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', 'PostToolUse:Read says: image: shot']), 'fullscreen mode thumbnails: ' + JSON.stringify(r.lines));
     await R(`${T}.term.write('\x1b[?1049l'); ${T}.fit.fit()`); await sleep(500);
     await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
