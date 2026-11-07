@@ -247,7 +247,7 @@ function placeImages(t) {
   // Draw: a small overlay image on that row, only while the row is on screen.
   const scr = t.el.querySelector('.xterm-screen'); if (!scr) return;
   if (!t.ov) { t.ov = document.createElement('div'); t.ov.className = 'ximgs'; t.el.appendChild(t.ov); t.ovImgs = new Map(); }
-  const cw = scr.clientWidth / term.cols, ch = scr.clientHeight / term.rows, top0 = alt ? 0 : b.viewportY, perRow = {}, seen = new Set();
+  const cw = scr.clientWidth / term.cols, ch = scr.clientHeight / term.rows, top0 = b.viewportY, perRow = {}, seen = new Set();
   for (const { j, ln } of picks.reverse()) {
     const y = ln.row - top0; if (y < 0 || y >= term.rows) continue;
     const m = imgs[j]; let im = t.ovImgs.get(m);

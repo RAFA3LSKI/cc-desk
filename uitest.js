@@ -363,11 +363,13 @@ async function run() {
     await R(`${T}.term.write(${JSON.stringify(SCREEN)})`); await sleep(700); r = await state();
     ok(r.lines.length === 3 && r.ims.length === 3, 'thumbnails lost after a redraw: ' + JSON.stringify(r.lines));
     // Claude's fullscreen mode (alternate screen, only the visible rows exist): the image hook's line anchors it; a folded "Read 1 file" alone must NOT guess
-    const ALT = '\x1b[?1049h\x1b[2J\x1b[H❯ look [Image #1]\r\n\r\n⏺ Read 1 file\r\n    PostToolUse:Read says: image: shot one.png\r\n\r\n⏺ Read 1 file\r\n\r\n⏺ Some reply.\r\n──────────\r\n❯ \r\n──────────\r\n';
+    const ALT = '\x1b[?1049h' + '\r\n'.repeat(60) + '\x1b[H\x1b[2J❯ look [Image #1]\r\n\r\n⏺ Read 1 file\r\n    PostToolUse:Read says: image: shot one.png\r\n\r\n⏺ Read 1 file\r\n\r\n⏺ Some reply.\r\n──────────\r\n❯ \r\n──────────\r\n';
+    await R(`${T}.term.resize(${T}.term.cols, ${T}.term.rows - 16)`); // like Raf's real tab: shrunk, then fullscreen mode, so its buffer holds more lines than the screen
     await R(`${T}.term.write(${JSON.stringify(ALT)})`); await sleep(700); r = await state();
+    ok(await R(`${T}.term.buffer.active.viewportY`) > 0, 'test setup: fullscreen buffer should start below line 0 here');
     ok(await R(`${T}.term.buffer.active.type`) === 'alternate', 'not on the alternate screen');
     ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', 'PostToolUse:Read says: image: shot one.png']), 'fullscreen mode thumbnails: ' + JSON.stringify(r.lines));
-    await R(`${T}.term.write('\x1b[?1049l')`); await sleep(500);
+    await R(`${T}.term.write('\x1b[?1049l'); ${T}.fit.fit()`); await sleep(500);
     await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
     await R(`closeTab(${k})`);
   });
