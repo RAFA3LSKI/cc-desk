@@ -4,6 +4,8 @@
 
 A small macOS window for [Claude Code](https://docs.claude.com/en/docs/claude-code) that feels like a chat app: your sessions in a sidebar, the **real `claude` terminal** on the right.
 
+![CC Desk with four Claude Code sessions in a 2×2 split view](screenshot.png)
+
 > Unofficial. Not made by, affiliated with, or endorsed by Anthropic. "Claude" and "Claude Code" are Anthropic's trademarks.
 
 It doesn't replace or modify Claude Code. It runs your installed `claude` in an embedded terminal, so your settings, hooks, skills, plugins and MCP servers all work exactly as they do in Terminal.
