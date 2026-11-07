@@ -282,6 +282,12 @@ async function run() {
     const w1 = (await rects())[0].w; ok(Math.abs(w1 - w0) > 40, `divider drag ${w0} -> ${w1}`);
     const n0 = await R(`Object.keys(tabs).length`), victim = await R(`panes[0]`); await R(`closeTab(${JSON.stringify(victim)})`); await sleep(300); ok(await R(`Object.keys(tabs).length`) === n0 - 1 && !(await R(`panes.includes(${JSON.stringify(victim)})`)) && (await rects()).length === 2, 'closing a pane should keep the split filled');
     await L('one'); r = await rects(); ok(r.length === 1 && !(await R(`document.querySelector('.paneHead')`)), 'back to one');
+    await L('grid4'); const g0 = (await rects())[0].w; await R(`$('sideBtn').click()`); await sleep(250);
+    const g1 = (await rects())[0].w; ok(await R(`getComputedStyle($('side')).display`) === 'none' && g1 > g0 + 100, `sidebar hide should widen panes ${g0} -> ${g1}`);
+    ok(await R(`panes.every(k => { const t = tabs[k], d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; })`), 'panes not refitted after hiding sidebar');
+    await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, bubbles: true }))`); await sleep(250);
+    ok(await R(`getComputedStyle($('side')).display`) !== 'none' && Math.abs((await rects())[0].w - g0) < 2, 'Cmd+B should bring the sidebar back');
+    await L('one');
   });
   await flow('29 phone alerts setting: makes a private channel, shows setup, off hides it', async () => {
     await R(`ipc.invoke('setSetting', 'desk.phoneAlerts', false)`); await sleep(100); // flow 15 toggles every switch
