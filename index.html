@@ -45,6 +45,7 @@
   #rewind { padding:4px 9px; font-size:12px; }
   #terms { flex:1; position:relative; }
   .term { position:absolute; inset:8px 4px 4px 12px; }
+  .tok { position:absolute; right:14px; bottom:2px; z-index:5; font-size:11px; color:var(--dim); background:rgba(38,38,36,.88); padding:1px 6px; border-radius:4px; pointer-events:none; }
   .xterm-viewport::-webkit-scrollbar { width:8px; } .xterm-viewport::-webkit-scrollbar-track { background:transparent; } .xterm-viewport::-webkit-scrollbar-thumb { background:#4a4945; border-radius:4px; }
   .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
   .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
@@ -234,11 +235,14 @@ function placeImages(t) {
   const lines = [];
   for (let i = 0; i < stop; i++) { const l = b.getLine(i); if (!l) continue; const s = l.translateToString(true);
     if (l.isWrapped && lines.length) lines[lines.length - 1].text += s; else lines.push({ row: i, text: s, end: s.trimEnd().length }); }
-  // Newest image goes to the newest line that names it.
-  const picks = [], from = {};
-  for (let j = imgs.length - 1; j >= 0; j--) { const h = imgs[j].hint; if (!h || b.type !== 'normal') continue;
-    for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) if (lines[i].text.includes(h)) { picks.push({ j, ln: lines[i] }); from[h] = i; break; }
-    if (from[h] === undefined) from[h] = -1; }
+  // Newest image goes to the newest tool/prompt line that names it ("⎿ file.png", "Read(file.png)", "❯ … [Image #1]"), never Claude's reply text.
+  // Claude Code often folds reads into "Read 2 files, listed 1 directory" with no name: then use that line, one image per file read.
+  const TOOL = /^\s*(⎿|⏺\s*Read|❯|>)/, FOLD = /\bRead (\d+) files?\b/, picks = [], from = {}, left = {}; let fb = lines.length;
+  for (let j = imgs.length - 1; j >= 0 && b.type === 'normal'; j--) { const h = imgs[j].hint; let hit = -1;
+    if (h) for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) if (TOOL.test(lines[i].text) && lines[i].text.includes(h)) { hit = from[h] = i; break; }
+    if (hit < 0 && imgs[j].opened) for (let i = fb - 1; i >= 0; i--) { const m = lines[i].text.match(FOLD); if (!m) continue;
+      left[i] ??= +m[1]; if (left[i]-- > 0) { hit = i; fb = left[i] > 0 ? i + 1 : i; break; } }
+    if (hit >= 0) picks.push({ j, ln: lines[hit] }); }
   const sig = picks.map(p => p.ln.row + ':' + p.j).join() + '|' + term.cols + '|' + imgs.length;
   if (sig === t.imgSig && (t.decos || []).every(d => !d.isDisposed)) return;
   (t.decos || []).forEach(d => d.dispose()); t.decos = []; t.imgSig = sig;
@@ -332,12 +336,13 @@ function makeTab(key, sessionId, cwd, title) {
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
     macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
+  const tok = document.createElement('div'); tok.className = 'tok'; tok.title = 'Tokens this session has used so far (agents included) and their estimated API cost, same as Usage > Sessions. /clear starts it again.'; el.appendChild(tok);
   el.addEventListener('mousedown', () => { if (active !== key) show(key); }, true);
   term.onData(d => ipc.send('write', key, d));
   promptSelectKeys(term, key);
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
   let imgT; term.onWriteParsed(() => { clearTimeout(imgT); imgT = setTimeout(() => tabs[key] && placeImages(tabs[key]), 250); });
-  return tabs[key] = { term, fit, el, sessionId, cwd, title: title || 'New session' };
+  return tabs[key] = { term, fit, el, tok, sessionId, cwd, title: title || 'New session' };
 }
 
 // Sessions that kept running while the app was closed come back as tabs.
@@ -405,7 +410,7 @@ function show(key) {
   $('empty').hidden = !!key;
   $('rewind').hidden = !key;
   const t = tabs[key];
-  if (t) { t.fit.fit(); t.term.focus(); $('title').textContent = t.title; loadUsage(t); }
+  if (t) { t.fit.fit(); t.term.focus(); $('title').textContent = t.title; loadUsage(t); tabBadges(); }
   else { $('title').textContent = APPNAME; $('use').textContent = ''; }
   render();
 }
@@ -646,6 +651,15 @@ function uClick(el) {
   else if (a === 'back') US.session = null; else if (a === 'page') US.page = +v; else if (a === 'retry') { US.err = null; uLoad(); }
   uRender();
 }
+// Token badge, bottom right of every session on screen. Updates every 5 s; unchanged transcripts aren't re-read.
+async function tabBadges() {
+  for (const k of panes.length ? panes : [active]) {
+    const t = tabs[k]; if (!t) continue;
+    const s = sessions.find(x => x.id === t.sessionId), u = s && await ipc.invoke('tabUsage', s.file).catch(() => null);
+    t.tok.textContent = u && u.tok ? `${TOK(u.tok)} tokens · ${USD(u.c)}` : '';
+  }
+}
+setInterval(tabBadges, 5000);
 ipc.on('usageProgress', (e, p) => { US.progress = p; if (!US.data) uRender(); });
 setInterval(() => { if (!uOpen()) return; if (Date.now() - US.at >= 30000) uLoad(); if ($('uAge') && US.at) $('uAge').textContent = 'Updated ' + uAgo(US.at); }, 5000);
 async function openSettings(page, keepMsg) {

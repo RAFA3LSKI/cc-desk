@@ -75,6 +75,18 @@ async function scan({ root = ROOT, cacheFile = CACHE, progress = () => {} } = {}
   return { rows: [...rows.values()], unpriced: [...unpriced] };
 }
 
+// One session for the tab badge: its transcript plus its agents, same parse and prices as the Usage > Sessions tab.
+// Streams the file (no worker), and skips files that haven't changed since the last call.
+const one = new Map();
+async function session(file) {
+  const files = [file, ...walk(path.join(file.slice(0, -6), 'subagents'))];
+  const sig = files.map(f => { try { const st = fs.statSync(f); return st.mtimeMs + ':' + st.size; } catch { return '-'; } }).join('|'), hit = one.get(file);
+  if (hit && hit.sig === sig) return hit.t;
+  const recs = new Map(); for (const f of files) for (const r of await parseFile(f).catch(() => [])) merge(recs, r);
+  const t = { c: 0, tok: 0 }; for (const r of recs.values()) { t.c += cost(r) || 0; t.tok += r[3] + r[4] + r[5] + r[6] + r[7]; }
+  one.set(file, { sig, t }); return t;
+}
+
 // Main process side: one scan at a time, callers share it.
 let running = null;
 function get(onProgress) {
@@ -112,6 +124,7 @@ async function selfcheck() {
   const b = await scan(opts); assert.deepStrictEqual(b, a, 'cached scan differs');
   fs.appendFileSync(main, line('m7', 'claude-sonnet-5-5', { input_tokens: 0, output_tokens: 1e6 }));
   assert(Math.abs(total((await scan(opts)).rows) - 43.3) < 1e-9, 'changed file was not re-read');
+  const one = await session(main); assert(Math.abs(one.c - 43.3) < 1e-9 && one.tok === 7.2e6 + 10, 'session badge ' + JSON.stringify(one));
   fs.rmSync(d, { recursive: true });
   return 'usage selfcheck OK';
 }
@@ -123,4 +136,4 @@ if (!isMainThread && workerData === 'usage-scan') {
   }).catch(e => { throw e; });
 }
 if (isMainThread && require.main === module) selfcheck().then(console.log, e => { console.error('FAIL:', e.message); process.exit(1); });
-module.exports = { get, selfcheck };
+module.exports = { get, session, selfcheck };

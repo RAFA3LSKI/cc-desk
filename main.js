@@ -54,6 +54,7 @@ ipcMain.handle('list', (e, limit) => S.list(limit));
 ipcMain.handle('live', () => S.live());
 ipcMain.handle('usage', (e, f) => S.usage(f));
 ipcMain.handle('usageData', () => require('./usage').get(p => win && !win.isDestroyed() && win.webContents.send('usageProgress', p)));
+ipcMain.handle('tabUsage', (e, f) => require('./usage').session(f));
 ipcMain.handle('extras', () => S.extras());
 ipcMain.handle('images', (e, id, from) => S.images(id, from));
 ipcMain.handle('rename', (e, file, id, n) => S.rename(file, id, n));
@@ -84,7 +85,10 @@ ipcMain.handle('doUpdate', async () => {
     }));
 });
 // Connections = `claude mcp list` (same health check the terminal runs, ~15s).
-ipcMain.handle('mcp', () => new Promise(res => require('child_process').execFile(process.env.SHELL || '/bin/zsh', ['-ilc', 'unset CLAUDE_CODE_OAUTH_TOKEN; claude mcp list'],
+// desk.unsetOauthToken (opt-in, ~/.claude-desk.json): drop a CLAUDE_CODE_OAUTH_TOKEN exported in the shell profile (a long-lived script token hides the
+// claude.ai connectors) so the normal login is used. Off by default: for people who log in WITH that token, unsetting it would log them out.
+const noTok = () => ST.get().desk.unsetOauthToken ? 'unset CLAUDE_CODE_OAUTH_TOKEN; ' : '';
+ipcMain.handle('mcp', () => new Promise(res => require('child_process').execFile(process.env.SHELL || '/bin/zsh', ['-ilc', noTok() + 'claude mcp list'],
   { cwd: S.HOME, timeout: 60000 }, (err, out) => res((out || '').split('\n').map(l => l.match(/^(.+?): .* - (.+)$/)).filter(Boolean)
     .map(m => ({ name: m[1].replace(/^claude\.ai /, ''), state: m[2].trim() }))))));
 ipcMain.handle('phoneTest', async () => { const t = ST.get().desk.ntfyTopic; if (!t) throw new Error('turn phone alerts on first'); await ptyd.ntfy(t, 'Claude needs you', 'Test from CC Desk. Phone alerts are working.'); });
@@ -95,9 +99,8 @@ ipcMain.on('focus', () => { win.show(); win.focus(); });
 // Runs the real installed `claude` through a login shell, so PATH, hooks and settings are exactly the terminal's.
 ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
   if (resumeId && !/^[0-9a-f-]{36}$/.test(resumeId)) throw new Error('bad session id');
-  // unset: a CLAUDE_CODE_OAUTH_TOKEN exported in the shell profile (long-lived token for scripts) hides the claude.ai connectors; use the normal login instead.
   // --remote-control: every tab can be picked up from the Claude phone app (Raf 2026-11-06).
-  const cmd = 'unset CLAUDE_CODE_OAUTH_TOKEN; exec claude --remote-control' + (resumeId ? ' --resume ' + resumeId : '');
+  const cmd = noTok() + 'exec claude --remote-control' + (resumeId ? ' --resume ' + resumeId : '');
   const missing = !require('fs').existsSync(cwd) && cwd; if (missing) cwd = S.HOME;
   const pid = await D.open({ key, shell: process.env.SHELL || '/bin/zsh', args: ['-ilc', cmd], cols, rows, cwd,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
