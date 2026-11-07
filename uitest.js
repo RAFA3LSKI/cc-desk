@@ -287,6 +287,9 @@ async function run() {
     ok(await R(`panes.every(k => { const t = tabs[k], d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; })`), 'panes not refitted after hiding sidebar');
     await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, bubbles: true }))`); await sleep(250);
     ok(await R(`getComputedStyle($('side')).display`) !== 'none' && Math.abs((await rects())[0].w - g0) < 2, 'Cmd+B should bring the sidebar back');
+    const dots = await R(`(() => { const it = document.createElement('div'); it.className = 'it'; it.innerHTML = '<span class="dot busy"></span><span class="dot waiting"></span><span class="t">x</span>'; $('list').appendChild(it);
+      const [b, w] = it.querySelectorAll('.dot'), r = { busy: getComputedStyle(b).backgroundColor, wait: getComputedStyle(w).backgroundColor, waitAnim: getComputedStyle(w).animationName, rowAnim: getComputedStyle(it.querySelector('.t')).animationName }; it.remove(); return r; })()`);
+    ok(dots.busy === 'rgb(224, 108, 117)' && dots.wait === 'rgb(255, 255, 255)' && dots.waitAnim === 'flash' && dots.rowAnim === 'flash', 'status colours ' + JSON.stringify(dots));
     await L('one');
   });
   await flow('29 phone alerts setting: makes a private channel, shows setup, off hides it', async () => {

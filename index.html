@@ -28,7 +28,9 @@
   .it .x.pinned { color:var(--accent); }
   .it input { flex:1; background:#2c2b28; color:var(--text); border:1px solid var(--accent); border-radius:5px; font:inherit; padding:2px 5px; }
   .dot { width:8px; height:8px; border-radius:50%; background:transparent; flex:none; }
-  .dot.busy { background:var(--busy); animation:pulse 1.2s infinite; } .dot.waiting { background:var(--wait); }
+  .dot.busy { background:var(--wait); animation:pulse 1.2s infinite; } /* Raf 2026-11-04: working = red, needs you = flashing white */
+  .dot.waiting { background:#fff; box-shadow:0 0 6px #fff; animation:flash .8s steps(1) infinite; } .it:has(.dot.waiting) .t { animation:flash .8s steps(1) infinite; }
+  @keyframes flash { 50% { opacity:.2; } }
   .dot.idle { background:var(--idle); } .dot.open { border:1px solid var(--dim); }
   @keyframes pulse { 50% { opacity:.35; } }
   #foot { border-top:1px solid var(--line); padding:8px 12px; display:flex; gap:6px; }
@@ -432,7 +434,7 @@ const tips = [
   '<b>⟲ Rewind</b> takes a session back to an earlier message: the button up top, or press Esc twice in the terminal.',
   '<b>Double-click</b> a session to rename it (shows in the terminal\'s /resume list too). <b>☆</b> pins it to the top.',
   'You get a <b>Mac notification</b> when a session finishes or needs you. Click it to jump there.',
-  '<b>Dots:</b> yellow = working · red = waiting for you · green = finished · hollow = open, not started.',
+  '<b>Dots:</b> red = working · flashing white = needs you · green = finished · hollow = open, not started.',
   'Type <b>/usage</b> in any session to see your weekly usage.',
   '<b>Drag a file or screenshot</b> onto a session to give it to Claude. <b>Ctrl+V</b> pastes a copied image.',
   '<b>⌘,</b> opens Settings. <b>Connections</b> there shows whether your MCP tools are connected.',
