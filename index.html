@@ -49,7 +49,7 @@
   .xterm-viewport::-webkit-scrollbar { width:8px; } .xterm-viewport::-webkit-scrollbar-track { background:transparent; } .xterm-viewport::-webkit-scrollbar-thumb { background:#4a4945; border-radius:4px; }
   .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
   .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
-  .ximg { position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#1f1e1d; }
+  .ximgs { position:absolute; inset:0; pointer-events:none; z-index:4; } .ximg { pointer-events:auto; position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#1f1e1d; }
   #lb { position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.88); cursor:zoom-out; } #lb:not([hidden]) { display:flex; align-items:center; justify-content:center; }
   #lb img { max-width:96%; max-height:96%; object-fit:contain; }
   .paneEmpty { position:absolute; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:12px; }
@@ -214,7 +214,7 @@ async function refreshLive() {
 
 // Images in the chat (screenshots you paste, images Claude opens) show as small thumbnails on their own line in the terminal.
 // Claude Code only prints "[Image #1]" or the file name there, so the image data comes from the transcript (2 s live poll)
-// and is pinned to that line with an xterm decoration, which scrolls with the text.
+// and drawn over that line (works in Claude's fullscreen mode too), following it as the screen redraws or scrolls.
 async function pollImages() {
   for (const t of Object.values(tabs)) {
     if (t.imgBusy || !t.sessionId) continue;
@@ -231,32 +231,34 @@ async function pollImages() {
   }
 }
 function placeImages(t) {
-  const term = t.term, b = term.buffer.active, imgs = t.imgs || [];
+  const term = t.term, b = term.buffer.active, imgs = t.imgs || [], alt = b.type !== 'normal'; // alt = Claude's fullscreen mode: only the visible screen exists
   const box = promptSpan(term), stop = box ? box.row - 1 : b.length; // never the prompt box you're typing in
   const lines = [];
   for (let i = 0; i < stop; i++) { const l = b.getLine(i); if (!l) continue; const s = l.translateToString(true);
     if (l.isWrapped && lines.length) lines[lines.length - 1].text += s; else lines.push({ row: i, text: s, end: s.trimEnd().length }); }
-  // Newest image goes to the newest tool/prompt line that names it ("⎿ file.png", "Read(file.png)", "❯ … [Image #1]"), never Claude's reply text.
-  // Claude Code often folds reads into "Read 2 files, listed 1 directory" with no name: then use that line, one image per file read.
+  // Newest image goes to the newest line that names it: the image hook's "image: file.png", a tool line ("⎿ file.png", "Read(file.png)")
+  // or your prompt ("❯ … [Image #1]"), never Claude's reply text. Normal mode only: a folded "Read 2 files" line takes one image per file.
   const TOOL = /^\s*(⎿|⏺\s*Read|❯|>)/, FOLD = /\bRead (\d+) files?\b/, picks = [], from = {}, left = {}; let fb = lines.length;
-  for (let j = imgs.length - 1; j >= 0 && b.type === 'normal'; j--) { const h = imgs[j].hint; let hit = -1;
-    if (h) for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) if (TOOL.test(lines[i].text) && lines[i].text.includes(h)) { hit = from[h] = i; break; }
-    if (hit < 0 && imgs[j].opened) for (let i = fb - 1; i >= 0; i--) { const m = lines[i].text.match(FOLD); if (!m) continue;
+  for (let j = imgs.length - 1; j >= 0; j--) { const h = imgs[j].hint; let hit = -1;
+    if (h) for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) { const x = lines[i].text; if (x.includes('image: ' + h) || (TOOL.test(x) && x.includes(h))) { hit = from[h] = i; break; } }
+    if (hit < 0 && imgs[j].opened && !alt) for (let i = fb - 1; i >= 0; i--) { const m = lines[i].text.match(FOLD); if (!m) continue;
       left[i] ??= +m[1]; if (left[i]-- > 0) { hit = i; fb = left[i] > 0 ? i + 1 : i; break; } }
     if (hit >= 0) picks.push({ j, ln: lines[hit] }); }
-  const sig = picks.map(p => p.ln.row + ':' + p.j).join() + '|' + term.cols + '|' + imgs.length;
-  if (sig === t.imgSig && (t.decos || []).every(d => !d.isDisposed)) return;
-  (t.decos || []).forEach(d => d.dispose()); t.decos = []; t.imgSig = sig;
-  const scr = t.el.querySelector('.xterm-screen'), cw = scr ? scr.getBoundingClientRect().width / term.cols : 8, room = Math.ceil(166 / (cw || 8)), perRow = {};
+  // Draw: a small overlay image on that row, only while the row is on screen.
+  const scr = t.el.querySelector('.xterm-screen'); if (!scr) return;
+  if (!t.ov) { t.ov = document.createElement('div'); t.ov.className = 'ximgs'; t.el.appendChild(t.ov); t.ovImgs = new Map(); }
+  const cw = scr.clientWidth / term.cols, ch = scr.clientHeight / term.rows, top0 = alt ? 0 : b.viewportY, perRow = {}, seen = new Set();
   for (const { j, ln } of picks.reverse()) {
-    const k = perRow[ln.row] = (perRow[ln.row] || 0) + 1, x = Math.max(0, Math.min(ln.end + 2 + (k - 1) * room, term.cols - room));
-    const marker = term.registerMarker(ln.row - (b.baseY + b.cursorY)); if (!marker) continue;
-    const d = term.registerDecoration({ marker, x, width: 1, height: 1, layer: 'top' }); if (!d) { marker.dispose(); continue; }
-    d.onRender(el => { el.style.overflow = 'visible'; if (el.firstChild) return; const im = new Image(); im.src = imgs[j].src; im.className = 'ximg';
-      im.title = (imgs[j].opened ? 'Opened by Claude' : 'Sent by you') + ' · click to enlarge';
-      im.onmousedown = e => { e.stopPropagation(); e.preventDefault(); $('lb').querySelector('img').src = im.src; $('lb').hidden = false; }; el.appendChild(im); });
-    d.onDispose(() => marker.dispose()); t.decos.push(d);
+    const y = ln.row - top0; if (y < 0 || y >= term.rows) continue;
+    const m = imgs[j]; let im = t.ovImgs.get(m);
+    if (!im) { im = new Image(); im.src = m.src; im.className = 'ximg'; im.title = (m.opened ? 'Opened by Claude' : 'Sent by you') + ' · click to enlarge';
+      im.onmousedown = e => { e.stopPropagation(); e.preventDefault(); $('lb').querySelector('img').src = im.src; $('lb').hidden = false; }; t.ov.appendChild(im); t.ovImgs.set(m, im); }
+    const k = perRow[ln.row] = (perRow[ln.row] || 0) + 1, x = Math.max(0, Math.min((ln.end + 2) * cw + (k - 1) * 168, scr.clientWidth - 166));
+    Object.assign(im.style, { left: scr.offsetLeft + x + 'px', top: scr.offsetTop + Math.min(y * ch + 2, scr.clientHeight - 74) + 'px', display: '' });
+    im.dataset.row = ln.row; seen.add(im);
   }
+  for (const im of t.ovImgs.values()) if (!seen.has(im)) im.style.display = 'none';
+  for (const [m, im] of t.ovImgs) if (!imgs.includes(m)) { im.remove(); t.ovImgs.delete(m); } // dropped by /clear or the 60 cap
 }
 $('lb').onclick = () => { $('lb').hidden = true; if (tabs[active]) tabs[active].term.focus(); };
 
@@ -342,7 +344,8 @@ function makeTab(key, sessionId, cwd, title) {
   term.onData(d => ipc.send('write', key, d));
   promptSelectKeys(term, key);
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
-  let imgT; term.onWriteParsed(() => { clearTimeout(imgT); imgT = setTimeout(() => tabs[key] && placeImages(tabs[key]), 250); });
+  let imgF = 0; const imgDraw = () => { if (!imgF) imgF = requestAnimationFrame(() => { imgF = 0; tabs[key] && placeImages(tabs[key]); }); };
+  term.onRender(imgDraw); term.onScroll(imgDraw); // thumbnails follow the text as Claude redraws or you scroll
   return tabs[key] = { term, fit, el, tok, sessionId, cwd, title: title || 'New session' };
 }
 

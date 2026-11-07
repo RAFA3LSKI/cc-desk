@@ -349,7 +349,8 @@ async function run() {
     await R(`${T}.term.write(${JSON.stringify(SCREEN)}); ${T}.sessionId = '${id}'; pollImages()`); await sleep(900);
     const state = async () => JSON.parse(await R(`JSON.stringify((() => { const t = ${T}, b = t.term.buffer.active, txt = i => b.getLine(i).translateToString(true);
       const ims = [...t.el.querySelectorAll('.ximg')].map(i => { const r = i.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, ok: i.complete && i.naturalWidth === 1, tip: i.title }; });
-      return { lines: (t.decos || []).filter(d => !d.isDisposed).map(d => txt(d.marker.line).trim()), ims, el: t.el.getBoundingClientRect().toJSON() }; })())`));
+      const vis = [...t.el.querySelectorAll('.ximg')].filter(i => i.style.display !== 'none').sort((a, c) => a.dataset.row - c.dataset.row);
+      return { lines: vis.map(i => txt(+i.dataset.row).trim()), ims: ims.filter((x, n) => [...t.el.querySelectorAll('.ximg')][n].style.display !== 'none'), el: t.el.getBoundingClientRect().toJSON() }; })())`));
     let r = await state();
     ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', '⎿  Downloads/shot one.png', '⏺ Read 1 file, listed 1 directory (ctrl+o to expand)']), 'thumbnails on wrong lines: ' + JSON.stringify(r.lines));
     ok(r.ims.length === 3 && r.ims.every(i => i.ok && i.w <= 161 && i.h <= 73 && i.x > r.el.left && i.x < r.el.right && i.y > r.el.top && i.y < r.el.bottom), 'thumbnails not small/inside the terminal ' + JSON.stringify(r.ims));
@@ -361,6 +362,12 @@ async function run() {
     // Claude redraws the whole screen (resize, /clear of the screen): thumbnails come back on the new lines
     await R(`${T}.term.write(${JSON.stringify(SCREEN)})`); await sleep(700); r = await state();
     ok(r.lines.length === 3 && r.ims.length === 3, 'thumbnails lost after a redraw: ' + JSON.stringify(r.lines));
+    // Claude's fullscreen mode (alternate screen, only the visible rows exist): the image hook's line anchors it; a folded "Read 1 file" alone must NOT guess
+    const ALT = '\x1b[?1049h\x1b[2J\x1b[H❯ look [Image #1]\r\n\r\n⏺ Read 1 file\r\n    PostToolUse:Read says: image: shot one.png\r\n\r\n⏺ Read 1 file\r\n\r\n⏺ Some reply.\r\n──────────\r\n❯ \r\n──────────\r\n';
+    await R(`${T}.term.write(${JSON.stringify(ALT)})`); await sleep(700); r = await state();
+    ok(await R(`${T}.term.buffer.active.type`) === 'alternate', 'not on the alternate screen');
+    ok(JSON.stringify(r.lines) === JSON.stringify(['❯ look [Image #1]', 'PostToolUse:Read says: image: shot one.png']), 'fullscreen mode thumbnails: ' + JSON.stringify(r.lines));
+    await R(`${T}.term.write('\x1b[?1049l')`); await sleep(500);
     await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
     await R(`closeTab(${k})`);
   });
