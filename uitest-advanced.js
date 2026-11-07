@@ -106,11 +106,11 @@ async function run() {
   await flow('01 resume old session: command, cwd, title', async () => {
     fs.writeFileSync(LOG, ''); await openRow(F[0].id); await sleep(900);
     let l = claudeLogs(); ok(l.length === 1, 'spawns after one click: ' + l.length);
-    ok(l[0] && l[0].args.endsWith(`exec claude --resume ${F[0].id}`), 'args: ' + (l[0] && l[0].args)); ok(l[0] && /unset CLAUDE_CODE_OAUTH_TOKEN;/.test(l[0].args), 'token unset missing'); ok(l[0] && /^-ilc /.test(l[0].args), 'not a login interactive shell');
+    ok(l[0] && l[0].args.endsWith(`exec claude --remote-control --resume ${F[0].id}`), 'args: ' + (l[0] && l[0].args)); ok(l[0] && !/unset CLAUDE_CODE_OAUTH_TOKEN/.test(l[0].args), 'token unset without desk.unsetOauthToken'); ok(l[0] && /^-ilc /.test(l[0].args), 'not a login interactive shell');
     ok(l[0] && real(l[0].pwd) === real(F[0].cwd), `cwd ${l[0] && l[0].pwd} vs ${F[0].cwd}`); ok(await R(`$('title').textContent`) === F[0].title, 'title bar ' + await R(`$('title').textContent`));
     ok((await tabsInfo())[0].title === F[0].title, 'tab title lost'); ok(/^2 turns/.test(await R(`$('use').textContent`)), 'usage line "' + await R(`$('use').textContent`) + '"');
     await openRow(F[0].id); await sleep(400); ok(claudeLogs().length === 1, 're-click spawned a second claude');
-    await R(`$('new').click()`); await sleep(700); l = claudeLogs(); ok(l.length === 2 && l[1].args.endsWith('exec claude'), 'new session args ' + (l[1] && l[1].args)); ok(l[1] && real(l[1].pwd) === real(F[0].cwd), 'new session cwd');
+    await R(`$('new').click()`); await sleep(700); l = claudeLogs(); ok(l.length === 2 && l[1].args.endsWith('exec claude --remote-control'), 'new session args ' + (l[1] && l[1].args)); ok(l[1] && real(l[1].pwd) === real(F[0].cwd), 'new session cwd');
     let bad = 'no-throw'; try { await R(`ipc.invoke('open', 'kx', '${H}', '../../etc/passwd', 80, 24)`); } catch (e) { bad = 'rejected'; } ok(bad === 'rejected', 'bad resume id accepted'); await closeAll();
   });
 
