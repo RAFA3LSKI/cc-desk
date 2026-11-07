@@ -132,7 +132,8 @@
 <div id="set" hidden><div id="setBox">
   <div id="setNav"><h3>Settings</h3>
     <div class="nv on" data-p="general">General</div><div class="nv" data-p="usage">Usage</div><div class="nv" data-p="model">Model</div>
-    <div class="nv" data-p="notif">Notifications</div><div class="nv" data-p="conn">Connections</div><div class="nv" data-p="plugins">Plugins</div><div class="nv" data-p="app">This app</div></div>
+    <div class="nv" data-p="notif">Notifications</div><div class="nv" data-p="conn">Connections</div><div class="nv" data-p="plugins">Plugins</div><div class="nv" data-p="app">This app</div>
+    <div class="nv" id="kofi" data-url="https://ko-fi.com/ralski" style="margin-top:auto">♥ Support CC Desk</div></div>
   <div id="setBody"><button id="setClose">✕</button><div id="setPage"></div><div id="setMsg"></div></div>
 </div></div>
 <div id="menu" hidden>
@@ -677,7 +678,7 @@ function applyDesk() {
   for (const t of Object.values(tabs)) { if (t.term.options.fontSize !== d.fontSize) { t.term.options.fontSize = d.fontSize; t.fit.fit(); } }
   $('tip').hidden = d.tips === false;
 }
-$('setNav').addEventListener('click', e => { const n = e.target.closest('.nv'); if (n) openSettings(n.dataset.p); });
+$('setNav').addEventListener('click', e => { const n = e.target.closest('.nv'); if (n && n.dataset.url) ipc.send('url', n.dataset.url); else if (n) openSettings(n.dataset.p); });
 $('setPage').addEventListener('change', e => { const k = e.target.dataset.k; if (k) saveSetting(k, k === 'desk.fontSize' ? +e.target.value : e.target.value); });
 $('setPage').addEventListener('click', e => {
   const u = e.target.closest('[data-u]'); if (u) return uClick(u);

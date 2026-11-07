@@ -24,6 +24,9 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 - **Shortcuts:** ⌘, Settings · ⌘B sidebar · ⌘A selects the whole prompt (then Backspace or typing replaces it)
 - Opens filling the screen (minus the menu bar and Dock)
 
+## Support
+CC Desk is free, with nothing locked or required. If it saves you time, you can [buy me a coffee on Ko-fi](https://ko-fi.com/ralski) ♥
+
 ## Install
 Needs macOS, [Node.js](https://nodejs.org) 20+, Claude Code (logged in) and Apple's command line tools (`xcode-select --install`).
 

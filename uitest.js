@@ -170,6 +170,8 @@ async function run() {
       if (p === 'plugins') ok(r[3] === Object.keys(rj(SETF).enabledPlugins || {}).length && r[3] > 0, 'plugin rows ' + r[3] + ' vs settings ' + Object.keys(rj(SETF).enabledPlugins || {}).length);
       if (p === 'conn') { await sleep(1500); ok(/Fake/.test(await R(`$('connList').textContent`)), 'connections list: ' + await R(`$('connList').textContent`)); }
     }
+    const n0 = opened.length; await R(`$('kofi').click()`); await sleep(300);
+    ok(opened.length === n0 + 1 && opened[n0] === 'https://ko-fi.com/ralski', 'Ko-fi link: ' + opened.slice(n0)); ok(await R(`document.querySelector('#setNav .nv.on').dataset.p`) === 'app', 'Ko-fi click changed the Settings page');
   });
   // open a tab so font-size can be observed, then exercise every control
   await R(`document.querySelector('#list .it[data-id="${S1.id}"]').click()`);
