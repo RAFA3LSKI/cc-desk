@@ -9,16 +9,20 @@ A small macOS window for [Claude Code](https://docs.claude.com/en/docs/claude-co
 It doesn't replace or modify Claude Code. It runs your installed `claude` in an embedded terminal, so your settings, hooks, skills, plugins and MCP servers all work exactly as they do in Terminal.
 
 ## What you get
-- **Sessions sidebar**: every past session under its real title, search, pins, rename (shows in `/resume` too), click to resume
-- **Several sessions open at once**, with live dots: working · waiting for you · finished
+- **Sessions sidebar**: every past session under its real title, search, pins, rename (shows in `/resume` too), click to resume. Scripted runs (`claude -p`) stay out of the list.
+- **Several sessions open at once**, with live status: a pulsing red dot while Claude works, a flashing white dot and title when it needs you, a plain dot when it's finished
 - **Mac notifications** when a session finishes or needs you; click to jump there
 - **Settings window** (⌘,) for model, effort, permissions, theme, notifications, plugins, connections (`claude mcp list`)
 - **Sessions that survive quitting:** a small background helper holds them, so quit or update the app and they keep working, then reconnect when you reopen it. You choose in Settings whether quitting asks first. Sessions untouched for 24 hours stop on their own; their chats stay saved.
-- **Split view:** see up to 3 sessions at once: side by side, stacked, or two beside each other with one across the top or bottom.
+- **Split view:** see up to 4 sessions at once: two side by side, two stacked, three columns, two beside each other with one across the top or bottom, or a 2×2 grid. Drag the dividers to resize; the layout is remembered across restarts.
+- **Hide the sidebar** (button or ⌘B) so split panes get the full width; also remembered.
+- **Continue on your phone:** every session starts with Claude Code's `--remote-control`, so you can pick it up in the Claude phone app or at claude.ai/code.
 - **Phone alerts (optional):** when Claude has waited over 90 seconds for an answer or permission, even with the app closed, using the free ntfy app.
 - **Usage page** in Settings: estimated cost, input, output and cached tokens by session, day, hour and model.
 - **Per-session usage** (turns and tokens), a ⟲ Rewind button, drag files onto a session, an account menu
 - **Updates in the app**: an "Update available" line shows up when there's a new version
+- **Shortcuts:** ⌘, Settings · ⌘B sidebar · ⌘A selects the whole prompt (then Backspace or typing replaces it)
+- Opens filling the screen (minus the menu bar and Dock)
 
 ## Install
 Needs macOS, [Node.js](https://nodejs.org) 20+, Claude Code (logged in) and Apple's command line tools (`xcode-select --install`).
@@ -37,12 +41,19 @@ Everything stays on your Mac. CC Desk sends nothing anywhere: no analytics, no s
 - a cache of token counts for the Usage page, in `~/.claude-desk-usage.json`,
 - the background helper's socket and log, `~/.claude-desk-ptyd.sock` and `.log`.
 
-The only network traffic is `git fetch` against this repo, to check for updates, and, only if you turn on phone alerts, a short message ("Claude needs you" plus the session name) sent through the public [ntfy.sh](https://ntfy.sh) server to your private random channel. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo.
+CC Desk's own network traffic is only `git fetch` against this repo, to check for updates, and, only if you turn on phone alerts, a short message ("Claude needs you" plus the session name) sent through the public [ntfy.sh](https://ntfy.sh) server to your private random channel. Installing an update runs the new version's code on your Mac (like any app update), so only install updates from this repo. Claude Code itself talks to Anthropic as usual, and because sessions start with `--remote-control`, they're reachable from your own Claude account on the phone app and claude.ai/code.
 
 ## How it works
 Electron + [xterm.js](https://xtermjs.org) + [node-pty](https://github.com/microsoft/node-pty). `sessions.js` reads the session files, `settings.js` edits a whitelist of settings, `main.js` runs `claude` in a pseudo-terminal, `index.html` is the UI. Live status comes from the `~/.claude/sessions/<pid>.json` files Claude Code writes (an approach borrowed from [Nimbalyst](https://github.com/nimbalyst/nimbalyst)).
 
-Checks: `node check.js` (session parsing) · `DESK_SMOKE=1 ~/Applications/"CC Desk.app"/Contents/MacOS/Electron` (hidden UI load).
+`ptyd.js` is the background helper that keeps sessions alive; `usage.js` builds the Usage page.
+
+Checks (all run hidden, in a sandbox HOME, and never touch your real files or the running app):
+- `node check.js`: session parsing
+- `DESK_SMOKE=1 ~/Applications/"CC Desk.app"/Contents/MacOS/Electron`: hidden UI load
+- `DESK_SELFTEST=1 node_modules/.bin/electron selftest.js`: a real `claude` boots in a hidden tab
+- `node uitest.js` and `node uitest-advanced.js`: everyday and advanced clicks with visible-state checks
+- `node uitest-persist.js`: quit and reopen, sessions survive and replay
 
 ## License
 MIT
