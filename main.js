@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron');
 const ptyd = require('./ptyd');
 const S = require('./sessions');
 const ST = require('./settings');
@@ -18,7 +18,7 @@ if (!SMOKE && !app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
 (app.isReady() ? Promise.resolve() : app.whenReady()).then(() => {
   win = new BrowserWindow({
-    width: 1440, height: 900, title: NAME, backgroundColor: '#1f1e1d',
+    ...screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea, title: NAME, // opens filling the screen (minus menu bar/Dock), Raf 2026-11-07 backgroundColor: '#1f1e1d',
     // ponytail: nodeIntegration on, fine because the window only ever loads our local index.html.
     webPreferences: { nodeIntegration: true, contextIsolation: false },
   });
@@ -27,7 +27,7 @@ app.on('second-instance', () => { if (win) { win.show(); win.focus(); } });
     win.webContents.on('did-finish-load', () => setTimeout(async () => {
       console.log('SMOKE', await win.webContents.executeJavaScript(
         `(async () => JSON.stringify({ popupBlocked: window.open('http://example.invalid') === null, app: require('electron').ipcRenderer ? 'ok' : 'x', items: document.querySelectorAll('.it').length, pinned: !!document.querySelector('.pin'), more: !!document.getElementById('more'), notif: typeof Notification,
-          hiddenLeaks: [...document.querySelectorAll('[hidden]')].filter(el => getComputedStyle(el).display !== 'none').map(el => el.id || el.tagName),
+          fillsScreen: ${JSON.stringify((() => { const b = win.getBounds(), w = screen.getDisplayMatching(b).workArea; return b.x === w.x && b.y === w.y && b.width === w.width && b.height === w.height; })())}, hiddenLeaks: [...document.querySelectorAll('[hidden]')].filter(el => getComputedStyle(el).display !== 'none').map(el => el.id || el.tagName),
           settingsClosable: await (async () => { await openSettings(); const opened = getComputedStyle($('set')).display !== 'none';
             $('setClose').click(); return opened && getComputedStyle($('set')).display === 'none'; })() }))()`));
       app.quit(); }, 3000)); }
