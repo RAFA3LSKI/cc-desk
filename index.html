@@ -238,9 +238,12 @@ function placeImages(t) {
     if (l.isWrapped && lines.length) lines[lines.length - 1].text += s; else lines.push({ row: i, text: s, end: s.trimEnd().length }); }
   // Newest image goes to the newest line that names it: the image hook's "image: file.png", a tool line ("⎿ file.png", "Read(file.png)")
   // or your prompt ("❯ … [Image #1]"), never Claude's reply text. Normal mode only: a folded "Read 2 files" line takes one image per file.
-  const TOOL = /^\s*(⎿|⏺\s*Read|❯|>)/, FOLD = /\bRead (\d+) files?\b/, picks = [], from = {}, left = {}; let fb = lines.length;
+  const sq = x => x.replace(/\s+/g, ''), TOOL = /^\s*(⎿|⏺\s*Read|❯|>)/, FOLD = /\bRead (\d+) files?\b/, picks = [], from = {}, left = {}; let fb = lines.length;
   for (let j = imgs.length - 1; j >= 0; j--) { const h = imgs[j].hint; let hit = -1;
-    if (h) for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) { const x = lines[i].text; if (x.includes('image: ' + h) || (TOOL.test(x) && x.includes(h))) { hit = from[h] = i; break; } }
+    // Claude wraps long lines itself (hard breaks), so a file name can run onto the next lines: compare with the next 2 lines joined, spaces ignored.
+    if (h) { const nh = sq(h); for (let i = (from[h] ?? lines.length) - 1; i >= 0; i--) { const x = lines[i].text, j3 = sq(x + (lines[i + 1] ? lines[i + 1].text : '') + (lines[i + 2] ? lines[i + 2].text : ''));
+      const at = k => { const p = j3.indexOf(k); return p >= 0 && p < sq(x).length; }; // the name must start on this line
+      if ((x.includes('image:') && at('image:' + nh)) || (TOOL.test(x) && at(nh))) { hit = from[h] = i; break; } } }
     if (hit < 0 && imgs[j].opened && !alt) for (let i = fb - 1; i >= 0; i--) { const m = lines[i].text.match(FOLD); if (!m) continue;
       left[i] ??= +m[1]; if (left[i]-- > 0) { hit = i; fb = left[i] > 0 ? i + 1 : i; break; } }
     if (hit >= 0) picks.push({ j, ln: lines[hit] }); }
