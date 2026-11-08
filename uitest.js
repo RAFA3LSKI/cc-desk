@@ -11,6 +11,7 @@ if (!process.versions.electron) {
   fs.mkdirSync(path.join(C, 'sessions'), { recursive: true }); fs.mkdirSync(path.join(C, 'agents'), { recursive: true }); fs.mkdirSync(path.join(C, 'skills'), { recursive: true });
   fs.copyFileSync(realFiles[0], path.join(C, 'settings.json'));
   if (fs.existsSync(realFiles[1])) fs.copyFileSync(realFiles[1], path.join(H, '.claude-desk.json'));
+  { const df = path.join(H, '.claude-desk.json'); let d = {}; try { d = JSON.parse(fs.readFileSync(df, 'utf8')); } catch {} d.view = 'term'; fs.writeFileSync(df, JSON.stringify(d)); } // sandbox copy only: the fake-shell flows type into the terminal; the chat flow switches to chat itself
   fs.writeFileSync(path.join(H, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'test@example.com', planDisplayName: 'Max' } }));
   // fixtures: 4 small real session files (top-level uuid.jsonl, real user prompt, cwd that exists)
   const PROJ = path.join(REAL, '.claude/projects'), picked = [];
@@ -331,6 +332,12 @@ async function run() {
     await screen(box); await key('a', 65, true); await R(`__w.length = 0`); await key('x', 88); ok((await R(`__w[0]`)) === wipe, 'typing over should clear first: ' + JSON.stringify(await R(`__w`)));
     await screen(box); await key('a', 65, true); await R(`${T}.select(0, 0, 5); __w.length = 0`); await key('Backspace', 8); ok((await R(`__w.join('')`)) === '\x7f', 'a mouse selection must not arm clearing: ' + JSON.stringify(await R(`__w`)));
     await screen('Do you want to proceed?\r\n❯ 1. Yes\r\n  2. No'); await key('a', 65, true); ok(!(await R(`${T}.hasSelection()`)), 'menu picked up as a prompt');
+    await R(`scanTerm(tabs[active]), 0`); ok(await R(`tabs[active].menu && tabs[active].menu.opts.length`) === 2, 'numbered menu not detected');
+    await screen('Earlier reply.\r\n❯ queued message that is long\r\n  and wraps onto a second line\r\n  and a third'); await R(`scanTerm(tabs[active]), 0`);
+    ok(await R(`tabs[active].menu`) === null, 'queued message read as a menu (fake bubbles)');
+    await screen('← ☐ Pairs ☐ Pain point ✔ Submit →\r\n\r\nQ2: which pain point does the video sell?\r\n\r\n❯ 1. Wrinkles/fine lines (Recommended)\r\n     Five Below already took age/sun spots\r\n  2. Dark spots\r\n     Same as the reference hero\r\n  3. Type something.\r\n' + '─'.repeat(40) + '\r\n  4. Chat about this\r\n\r\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel');
+    await R(`scanTerm(tabs[active]), 0`); const qm = JSON.parse(await R(`JSON.stringify(tabs[active].menu)`) || 'null');
+    ok(qm && qm.opts.map(o => o.label).join('|') === 'Wrinkles/fine lines (Recommended)|Dark spots|Type something.|Chat about this' && qm.sel === 0 && /Q2: which pain point/.test(qm.q), 'question menu with descriptions not read: ' + JSON.stringify(qm));
     await R(`ipc.send = __o; 0`);
   });
   await flow('31 images: thumbnails sit on their own chat line inside the terminal, click enlarges, survive a redraw, never on the prompt box', async () => {
@@ -386,6 +393,33 @@ async function run() {
     ok(r.inPane && r.got.length === 2, 'typing did not reach the new tab ' + JSON.stringify(r));
     ok(r.got[0] === r.rows && r.got[1] === r.cols, `pty size ${r.got[1]}x${r.got[0]} vs xterm ${r.cols}x${r.rows}`);
     await R(`closeTab(${JSON.stringify(k)})`); await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
+  });
+  await flow('32b chat view: composer sends text + Enter to the pty, ⌘T flips terminal/chat, transcript lines render', async () => {
+    fs.writeFileSync(path.join(os.homedir(), 'probe'), ''); await R(`$('new').click()`); await sleep(1500); fs.unlinkSync(path.join(os.homedir(), 'probe'));
+    const k = await R(`active`), key = JSON.stringify(k);
+    ok(await R(`tabs[${key}].mode === 'term' && tabs[${key}].chatEl.hidden`), 'sandbox view:term should start in terminal view');
+    await R(`setView(tabs[${key}], 'chat')`);
+    ok(await R(`tabs[${key}].mode === 'chat' && !tabs[${key}].chatEl.hidden`), 'setView chat did not show the chat overlay');
+    const grow = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[${key}], ta = t.ta, h0 = ta.offsetHeight; const sb = () => ta.offsetWidth - ta.clientWidth;
+      const s0 = sb(); ta.value = 'x\\n'.repeat(3); ta.dispatchEvent(new Event('input')); const h1 = ta.offsetHeight, s1 = sb();
+      ta.value = 'x\\n'.repeat(200); ta.dispatchEvent(new Event('input')); const h2 = ta.offsetHeight, s2 = sb(); ta.value = ''; ta.dispatchEvent(new Event('input'));
+      return { max: Math.max(180, t.chatEl.clientHeight * 0.45), h0, h1, h2, s0, s1, s2, h3: ta.offsetHeight, s3: sb() }; })())`)); console.log('composer ' + JSON.stringify(grow));
+    ok(grow.h1 > grow.h0 + 20 && grow.s1 === 0, 'long text: box did not grow, or scrollbar showed');
+    ok(grow.h2 < grow.max + 2 && grow.h2 > grow.h1 && grow.s2 > 0, 'past max height: should cap and show a scrollbar'); ok(grow.h3 === grow.h0 && grow.s0 === 0 && grow.s3 === 0, 'empty box: back to one line, no scrollbar');
+    await R(`(() => { const t = tabs[${key}]; t.ta.value = 'hello chat'; t.ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); })()`); await sleep(700);
+    const r = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[${key}], b = t.term.buffer.active; let s = ''; for (let i = 0; i < b.length; i++) s += b.getLine(i).translateToString(true) + '\\n'; return { got: /GOT:hello chat SIZE:/.test(s), ta: t.ta.value }; })())`));
+    ok(r.got, 'composer text + Enter did not reach the pty as "hello chat\\r"'); ok(r.ta === '', 'composer not cleared after send');
+    const cmdT = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 't', metaKey: true, bubbles: true, cancelable: true })); [tabs[${key}].mode, tabs[${key}].chatEl.hidden]`;
+    ok(JSON.stringify(await R(cmdT)) === '["term",true]', '⌘T from chat should show the terminal');
+    ok(JSON.stringify(await R(cmdT)) === '["chat",false]', '⌘T from terminal should show the chat');
+    // transcript: a sandbox jsonl, tab pointed at it, one poll
+    const sid = '44444444-4444-4444-8444-000000000001', dir = path.join(os.homedir(), '.claude/projects/-chatfix'); fs.mkdirSync(dir, { recursive: true });
+    const line = (type, content) => JSON.stringify({ type, message: { role: type, content }, uuid: Math.random().toString(36), timestamp: new Date().toISOString() });
+    fs.writeFileSync(path.join(dir, sid + '.jsonl'), line('user', 'question from raf') + '\n' + line('assistant', [{ type: 'text', text: 'answer from claude' }]) + '\n');
+    await R(`(async () => { const t = tabs[${key}]; t.sessionId = '${sid}'; await pollChat(t); })()`);
+    const m = JSON.parse(await R(`JSON.stringify([...tabs[${key}].chatEl.querySelectorAll('.cme')].map(e => e.textContent).concat([...tabs[${key}].chatEl.querySelectorAll('.cbody')].map(e => e.textContent.trim())))`));
+    ok(m.includes('question from raf') && m.includes('answer from claude'), 'transcript did not render as .cme/.cbody ' + JSON.stringify(m));
+    await R(`closeTab(${key})`);
   });
   // Pane tree (2026-11-08): drag tabs between panes, resize each pane on its own, no pane cap, split any pane.
   const PT = `const box = k => { const r = tabs[k].el.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; };

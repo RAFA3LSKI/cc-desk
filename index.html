@@ -3,30 +3,30 @@
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <style>
   [hidden] { display:none !important; } /* id rules like #set{display:flex} must never beat the hidden attribute */
-  :root { --bg:#262624; --side:#1f1e1d; --line:#3a3936; --text:#e8e6dc; --dim:#9b9a93; --accent:#d97757;
-          --busy:#e5b454; --wait:#e06c75; --idle:#7fb77e; }
+  :root { color-scheme:dark; --bg:#1b1c20; --side:#151619; --line:#2c2e34; --text:#dcdee3; --dim:#878c97; --accent:#e8a35c;
+          --busy:#e5b454; --raise:#232429; --raise2:#2a2c32; --wait:#e06c75; --idle:#7fb77e; }
   * { box-sizing:border-box; }
   body { margin:0; display:flex; height:100vh; background:var(--bg); color:var(--text);
-         font:13px -apple-system, system-ui, sans-serif; overflow:hidden; }
+         font:13px -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow:hidden; }
   #side { width:300px; min-width:300px; background:var(--side); border-right:1px solid var(--line);
           display:flex; flex-direction:column; }
   #top { padding:14px 12px 8px; display:flex; flex-direction:column; gap:8px; -webkit-app-region:drag; }
   #top > * { -webkit-app-region:no-drag; }
   button { background:none; color:var(--text); border:1px solid var(--line); border-radius:8px;
            padding:7px 10px; font:inherit; cursor:pointer; text-align:left; }
-  button:hover { background:#2c2b28; }
-  #new { background:var(--accent); border-color:var(--accent); color:#1f1e1d; font-weight:600; text-align:center; }
-  #q { background:#2c2b28; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; font:inherit; outline:none; }
+  button:hover { background:#232429; }
+  #new { background:var(--accent); border-color:var(--accent); color:#151619; font-weight:600; text-align:center; }
+  #q { background:#232429; border:1px solid var(--line); color:var(--text); border-radius:8px; padding:7px 10px; font:inherit; outline:none; }
   #list { flex:1; overflow-y:auto; padding:0 6px 10px; }
   .grp { color:var(--dim); font-size:11px; text-transform:uppercase; letter-spacing:.05em; padding:12px 8px 4px; }
   .it { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:8px; cursor:pointer; }
-  .it:hover { background:#2c2b28; } .it.on { background:#34332f; }
+  .it:hover { background:#232429; } .it.on { background:#2a2c32; }
   .it .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .it.empty .t { color:var(--dim); font-style:italic; }
   .it .when { color:var(--dim); font-size:11px; }
   .it .x { color:var(--dim); visibility:hidden; padding:0 2px; } .it:hover .x, .it .x.pinned { visibility:visible; }
   .it .x.pinned { color:var(--accent); }
-  .it input { flex:1; background:#2c2b28; color:var(--text); border:1px solid var(--accent); border-radius:5px; font:inherit; padding:2px 5px; }
+  .it input { flex:1; background:#232429; color:var(--text); border:1px solid var(--accent); border-radius:5px; font:inherit; padding:2px 5px; }
   .dot { width:8px; height:8px; border-radius:50%; background:transparent; flex:none; }
   .dot.busy { background:var(--wait); animation:pulse 1.2s infinite; } /* Raf 2026-11-04: working = red, needs you = flashing white */
   .dot.waiting { background:#fff; box-shadow:0 0 6px #fff; animation:flash .8s steps(1) infinite; } .it:has(.dot.waiting) .t { animation:flash .8s steps(1) infinite; }
@@ -45,20 +45,20 @@
   #rewind { padding:4px 9px; font-size:12px; }
   #terms { flex:1; position:relative; }
   .term { position:absolute; inset:8px 4px 4px 12px; }
-  .tok { position:absolute; right:14px; bottom:2px; z-index:5; font-size:11px; color:var(--dim); background:rgba(38,38,36,.88); padding:1px 6px; border-radius:4px; pointer-events:none; }
+  .tok { position:absolute; right:14px; bottom:2px; z-index:5; font-size:11px; color:var(--dim); background:rgba(27,28,32,.88); padding:1px 6px; border-radius:4px; pointer-events:none; }
   .xterm-viewport::-webkit-scrollbar { width:8px; } .xterm-viewport::-webkit-scrollbar-track { background:transparent; } .xterm-viewport::-webkit-scrollbar-thumb { background:#4a4945; border-radius:4px; }
   .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
   .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
   .paneHead { display:flex; gap:2px; cursor:grab; } .paneHead .ph { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .paneHead .pb { font-weight:normal; padding:0 5px; color:var(--dim); cursor:pointer; visibility:hidden; } .paneHead:hover .pb { visibility:visible; } .paneHead .pb:hover { color:var(--text); }
   #dropZone { position:absolute; z-index:6; background:rgba(217,119,87,.18); border:2px solid var(--accent); border-radius:6px; pointer-events:none; }
-  .ximgs { position:absolute; inset:0; pointer-events:none; z-index:4; } .ximg { pointer-events:auto; position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#1f1e1d; }
+  .ximgs { position:absolute; inset:0; pointer-events:none; z-index:4; } .ximg { pointer-events:auto; position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#151619; }
   #lb { position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.88); cursor:zoom-out; } #lb:not([hidden]) { display:flex; align-items:center; justify-content:center; }
   #lb img { max-width:96%; max-height:96%; object-fit:contain; }
   .paneEmpty { position:absolute; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:12px; }
   .divider { position:absolute; z-index:5; background:var(--line); } .divider:hover, .divider.drag { background:var(--accent); }
   .divider.x { width:4px; margin-left:-2px; cursor:col-resize; } .divider.y { height:4px; margin-top:-2px; cursor:row-resize; }
-  #layouts { display:flex; gap:2px; margin-left:auto; } #layouts button { padding:3px 5px; border:0; line-height:0; color:var(--dim); } #layouts button.on { background:#34332f; color:var(--text); }
+  #layouts { display:flex; gap:2px; margin-left:auto; } #layouts button { padding:3px 5px; border:0; line-height:0; color:var(--dim); } #layouts button.on { background:#2a2c32; color:var(--text); }
   #empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:6px; }
   #tip { height:26px; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
   #tip b { color:var(--accent); font-weight:600; }
@@ -68,11 +68,11 @@
   #acct { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; text-align:left; }
   #optBtn { flex:none; width:38px; padding:0; font-size:16px; display:flex; align-items:center; justify-content:center; }
   #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #acctPlan { color:var(--dim); font-size:11px; }
-  #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#2c2b28; border:1px solid var(--line);
+  #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#232429; border:1px solid var(--line);
           border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:9; }
   #menu .mail { color:var(--dim); padding:6px 10px 8px; overflow:hidden; text-overflow:ellipsis; }
   #menu .mi { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:7px; cursor:pointer; }
-  #menu .mi:hover { background:#3a3936; } #menu .mi span { flex:1; } #menu kbd { color:var(--dim); font:inherit; font-size:12px; }
+  #menu .mi:hover { background:#2c2e34; } #menu .mi span { flex:1; } #menu kbd { color:var(--dim); font:inherit; font-size:12px; }
   #menu .mi.sure { background:#5a2d2d; }
   #menu hr { border:0; border-top:1px solid var(--line); margin:5px 4px; }
 
@@ -82,14 +82,14 @@
   #setNav { width:200px; background:var(--side); padding:18px 10px; display:flex; flex-direction:column; gap:2px; }
   #setNav h3 { margin:0 10px 12px; font-size:15px; }
   #setNav .nv { padding:8px 10px; border-radius:8px; cursor:pointer; color:var(--dim); }
-  #setNav .nv:hover { background:#2c2b28; } #setNav .nv.on { background:#34332f; color:var(--text); }
+  #setNav .nv:hover { background:#232429; } #setNav .nv.on { background:#2a2c32; color:var(--text); }
   #setBody { flex:1; overflow-y:auto; padding:22px 28px; position:relative; }
   #setBody h2 { margin:0 0 4px; font-size:18px; } #setBody .sub { color:var(--dim); margin-bottom:16px; font-size:12px; }
   .row { display:flex; align-items:center; gap:16px; padding:14px 0; border-bottom:1px solid var(--line); }
   .row .l { flex:1; } .row .d { color:var(--dim); font-size:12px; margin-top:3px; }
-  .row select { background:#2c2b28; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit; }
+  .row select { background:#232429; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 8px; font:inherit; }
   .sw { width:38px; height:22px; border-radius:11px; background:#4a4945; position:relative; cursor:pointer; flex:none; transition:.15s; }
-  .sw::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#e8e6dc; transition:.15s; }
+  .sw::after { content:''; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#dcdee3; transition:.15s; }
   .sw.on { background:var(--accent); } .sw.on::after { left:19px; }
   #setClose { position:absolute; top:14px; right:16px; border:0; font-size:16px; color:var(--dim); }
   #setMsg { color:var(--idle); font-size:12px; height:16px; margin-top:12px; }
@@ -98,22 +98,64 @@
   .uTabs button { border:0; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; padding:7px 12px; color:var(--dim); }
   .uTabs button.on { color:var(--text); border-bottom-color:var(--accent); }
   .uPills { display:flex; flex-wrap:wrap; gap:4px; margin:0 12px 10px 0; } .uBar { display:flex; flex-wrap:wrap; }
-  .uPills button { padding:3px 10px; border-radius:14px; font-size:12px; color:var(--dim); } .uPills button.on { background:#34332f; color:var(--text); }
+  .uPills button { padding:3px 10px; border-radius:14px; font-size:12px; color:var(--dim); } .uPills button.on { background:#2a2c32; color:var(--text); }
   .uMeter { margin-bottom:12px; } .uMeter .t { display:flex; justify-content:space-between; gap:12px; margin-bottom:4px; } .uDim { color:var(--dim); font-size:12px; }
-  .uTrack { height:8px; background:#34332f; border-radius:4px; overflow:hidden; } .uTrack span { display:block; height:100%; background:var(--accent); border-radius:4px; }
+  .uTrack { height:8px; background:#2a2c32; border-radius:4px; overflow:hidden; } .uTrack span { display:block; height:100%; background:var(--accent); border-radius:4px; }
   .uTiles { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:12px 0; }
-  .uTile { background:#2c2b28; border-radius:8px; padding:10px; min-width:0; } .uTile b { display:block; font-size:18px; font-weight:600; }
+  .uTile { background:#232429; border-radius:8px; padding:10px; min-width:0; } .uTile b { display:block; font-size:18px; font-weight:600; }
   .uRead { color:var(--dim); font-size:12px; height:16px; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .uChart { display:flex; align-items:stretch; height:120px; margin-top:6px; border-bottom:1px solid var(--line); }
   .uCol { flex:1; min-width:0; padding:0 1px; border:0; border-radius:0; display:flex; align-items:flex-end; background:none; }
-  .uCol:hover { background:#2c2b28; } .uCol span { display:block; width:100%; max-width:40px; margin:0 auto; background:var(--accent); border-radius:3px 3px 0 0; }
+  .uCol:hover { background:#232429; } .uCol span { display:block; width:100%; max-width:40px; margin:0 auto; background:var(--accent); border-radius:3px 3px 0 0; }
   .uCol.on span { background:var(--text); } .uChart.tall { height:145px; }
   .uAxis { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; margin-top:3px; }
   .uRow { display:flex; align-items:center; gap:12px; width:100%; padding:8px; border:0; border-radius:7px; text-align:left; }
-  .uRow:hover { background:#2c2b28; } .uRow .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .uRow .v { color:var(--dim); font-size:12px; white-space:nowrap; }
+  .uRow:hover { background:#232429; } .uRow .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .uRow .v { color:var(--dim); font-size:12px; white-space:nowrap; }
   .uTag { color:var(--accent); font-size:11px; margin-left:6px; } .uPager { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px; }
   #panel h4 { margin:10px 0 4px; color:var(--dim); font-size:11px; text-transform:uppercase; }
   #panel div.n { padding:2px 0; }
+  /* Chat view (2026-11-08): the session drawn as messages over its terminal; ⌘T flips back to the terminal */
+  .chatv { position:absolute; inset:-8px -4px -4px -12px; z-index:6; background:var(--bg); display:flex; flex-direction:column; font:14px/1.6 -apple-system, system-ui, sans-serif; }
+  .cmsgs { flex:1; overflow-y:auto; padding:18px 18px 8px; }
+  .ccol { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+  .cempty { color:var(--dim); text-align:center; margin-top:18vh; }
+  .cme { align-self:flex-end; background:var(--raise2); padding:8px 14px; border-radius:16px 16px 4px 16px; max-width:80%; white-space:pre-wrap; word-break:break-word; }
+  .cme img, .cbody img.cimg { max-height:120px; max-width:200px; border-radius:8px; display:block; margin-top:6px; cursor:zoom-in; }
+  .cbot { display:flex; gap:10px; }
+  .cav { width:24px; height:24px; border-radius:7px; background:#3a2c1d; color:var(--accent); display:grid; place-items:center; font-size:12px; flex:none; margin-top:2px; }
+  .cbody { display:flex; flex-direction:column; gap:8px; min-width:0; flex:1; }
+  .cbody p, .cbody ul, .cbody ol, .cbody h4 { margin:0; } .cbody ul, .cbody ol { padding-left:20px; }
+  .cbody h4 { font-size:14.5px; font-weight:600; color:#fff; }
+  .cbody code { font:12px 'SF Mono', Menlo, monospace; background:var(--raise2); padding:1px 5px; border-radius:4px; color:#8cc6ff; }
+  .cbody pre, .cdetail { font:12px/1.55 'SF Mono', Menlo, monospace; background:var(--side); border:1px solid var(--line); border-radius:9px; padding:9px 12px; margin:0; overflow-x:auto; white-space:pre; }
+  .cbody pre code { background:none; padding:0; color:var(--text); }
+  .cbody a { color:#8cc6ff; cursor:pointer; }
+  .cbody table { border-collapse:collapse; font-size:13px; } .cbody td, .cbody th { border:1px solid var(--line); padding:3px 8px; text-align:left; } .cbody th { background:var(--raise); }
+  .csteps { display:flex; flex-wrap:wrap; gap:6px; }
+  .cstep { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:9px; padding:2px 10px; cursor:pointer; max-width:100%; }
+  .cstep:hover { background:var(--raise); } .cstep.open { border-color:var(--accent); }
+  .cstep b { color:var(--text); font-weight:500; } .cstep span.d { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cstep i { width:7px; height:7px; border-radius:50%; background:var(--busy); flex:none; } .cstep.ok i { background:var(--idle); } .cstep.err i { background:var(--wait); }
+  .cdetail .a { color:#a6d9a9; } .cdetail .r { color:#ef8b8b; }
+  .ccmd { align-self:center; color:var(--dim); font-size:12px; border:1px dashed var(--line); border-radius:9px; padding:1px 10px; }
+  .cfoot { padding:0 14px 12px; display:flex; flex-direction:column; gap:8px; max-width:752px; width:100%; margin:0 auto; }
+  .clive { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:12.5px; } .clive .ltxt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .clive i { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s ease-in-out infinite; flex:none; }
+  .cask { border:1px solid #5a4630; background:#241e17; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+  .cask .q { white-space:pre-wrap; font-size:13px; } .cask .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  .cbtn { border-radius:8px; padding:4px 12px; font-size:12.5px; border:1px solid var(--line); background:var(--raise2); color:var(--text); text-align:center; }
+  .cbtn.go { background:var(--accent); border-color:var(--accent); color:#1d1408; font-weight:600; }
+  .ccomp { border:1px solid var(--line); background:var(--raise); border-radius:16px; padding:7px 8px 7px 14px; display:flex; align-items:flex-end; gap:8px; }
+  .ccomp:focus-within { border-color:#4a3a28; }
+  .ccomp textarea { flex:1; background:none; border:0; outline:none; color:var(--text); font:inherit; resize:none; padding:3px 0; overflow-y:hidden; }
+  .ccomp textarea::-webkit-scrollbar { width:6px; } .ccomp textarea::-webkit-scrollbar-thumb { background:#4a4945; border-radius:3px; }
+  .cpill { font-size:11.5px; border:1px solid var(--line); border-radius:999px; padding:1px 9px; color:var(--dim); white-space:nowrap; cursor:pointer; margin-bottom:4px; }
+  .cpill.mode { color:var(--accent); border-color:#4a3a28; cursor:default; }
+  .csend { width:28px; height:28px; border-radius:50%; background:var(--accent); border:0; color:#1d1408; font-weight:700; text-align:center; padding:0; flex:none; }
+  .csend:hover { background:var(--accent); filter:brightness(1.08); }
+  .tochat { position:absolute; top:4px; right:10px; z-index:6; font-size:12px; border-radius:999px; padding:3px 12px; background:var(--accent); border-color:var(--accent); color:#1d1408; font-weight:600; text-align:center; }
+  .tochat:hover { background:var(--accent); filter:brightness(1.08); }
+  .ctok { color:var(--dim); font-size:11px; text-align:right; margin-top:-4px; font-variant-numeric:tabular-nums; }
 </style></head>
 <body>
 <div id="side">
@@ -213,6 +255,7 @@ async function refreshLive() {
   syncTabTitles();
   render();
   pollImages();
+  for (const t of Object.values(tabs)) chatTick(t);
 }
 
 // Images in the chat (screenshots you paste, images Claude opens) show as small thumbnails on their own line in the terminal.
@@ -343,7 +386,7 @@ function promptSelectKeys(term, key) {
 function makeTab(key, sessionId, cwd, title) {
   const el = document.createElement('div'); el.className = 'term'; $('terms').appendChild(el);
   const term = new Terminal({ fontFamily:'Menlo, monospace', fontSize:deskPrefs.fontSize || 13, cursorBlink:true, allowProposedApi:true,
-    macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#262624', foreground:'#e8e6dc', cursor:'#d97757', selectionBackground:'#5a4a3f' } });
+    macOptionIsMeta:true, linkHandler:{ activate:(e, uri) => ipc.send('url', uri) }, theme:{ background:'#1b1c20', foreground:'#dcdee3', cursor:'#e8a35c', selectionBackground:'#4a3a28' } });
   const fit = new FitAddon(); term.loadAddon(fit); term.open(el); fit.fit();
   const tok = document.createElement('div'); tok.className = 'tok'; tok.title = 'Tokens this session has used so far (agents included) and their estimated API cost, same as Usage > Sessions. /clear starts it again.'; el.appendChild(tok);
   el.addEventListener('mousedown', () => { if (active !== key) show(key); }, true);
@@ -352,8 +395,145 @@ function makeTab(key, sessionId, cwd, title) {
   term.onResize(({cols, rows}) => ipc.send('resize', key, cols, rows));
   let imgF = 0; const imgDraw = () => { if (!imgF) imgF = requestAnimationFrame(() => { imgF = 0; tabs[key] && placeImages(tabs[key]); }); };
   term.onRender(imgDraw); term.onScroll(imgDraw); // thumbnails follow the text as Claude redraws or you scroll
-  return tabs[key] = { term, fit, el, tok, sessionId, cwd, title: title || 'New session' };
+  const t = tabs[key] = { term, fit, el, tok, sessionId, cwd, title: title || 'New session' };
+  initChat(t, key); return t;
 }
+
+// ---- Chat view (2026-11-08, Raf: "move towards the chat look") ----
+// The real claude keeps running in the terminal underneath; this draws its transcript as messages, sends what you type to it,
+// and reads Claude's own screen for the live "working" line, the mode, and menus (permission questions) to show as buttons.
+const KEEP_IN_CHAT = /^\/(clear|compact|rename|cost|btw|model \S)/; // other slash commands open menus: show the terminal for those
+function md(src) {
+  const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a data-url="$2">$1</a>').replace(/(^|[\s(])(https:\/\/[^\s)<]+)/g, '$1<a data-url="$2">$2</a>');
+  const out = [], parts = String(src).split(/^```[^\n]*\n?/m);
+  parts.forEach((part, i) => {
+    if (i % 2) { out.push(`<pre><code>${esc(part.replace(/\n$/, ''))}</code></pre>`); return; }
+    for (const blk of part.split(/\n\s*\n/)) {
+      const ls = blk.split('\n').filter(l => l.trim()); if (!ls.length) continue;
+      if (ls.every(l => /^\s*\|/.test(l))) { out.push('<table>' + ls.filter(l => !/^\s*\|[\s:|-]+\|\s*$/.test(l)).map((l, r) => '<tr>' + l.trim().replace(/^\||\|$/g, '').split('|').map(c => r ? `<td>${inl(c.trim())}</td>` : `<th>${inl(c.trim())}</th>`).join('') + '</tr>').join('') + '</table>'); continue; }
+      let html = '', list = null;
+      for (const l of ls) {
+        const h = l.match(/^#{1,6}\s+(.*)/), li = l.match(/^\s*(?:[-*•]|(\d+)[.)])\s+(.*)/);
+        if (li) { const t = li[1] ? 'ol' : 'ul'; if (list !== t) { if (list) html += `</${list}>`; html += `<${t}>`; list = t; } html += `<li>${inl(li[2])}</li>`; continue; }
+        if (list) { html += `</${list}>`; list = null; }
+        html += h ? `<h4>${inl(h[1])}</h4>` : `<p>${inl(l)}</p>`;
+      }
+      if (list) html += `</${list}>`;
+      out.push(html);
+    }
+  });
+  return out.join('');
+}
+function initChat(t, key) {
+  const c = document.createElement('div'); c.className = 'chatv';
+  c.innerHTML = `<div class="cmsgs"><div class="ccol"><div class="cempty">Type below to talk to Claude. ⌘T shows the terminal.</div></div></div>
+    <div class="cfoot"><div class="clive" hidden><i></i><span class="ltxt"></span><button class="cbtn" data-stop>Stop</button></div>
+    <div class="cask" hidden></div>
+    <div class="ccomp"><textarea rows="1" placeholder="Reply to Claude…"></textarea><span class="cpill mode" hidden></span><span class="cpill" data-term title="Show the terminal (⌘T)">Terminal</span><button class="csend" title="Send (Enter)">↑</button></div>
+    <div class="ctok"></div></div>`;
+  t.el.appendChild(c);
+  const back = document.createElement('button'); back.className = 'tochat'; back.textContent = 'Back to chat'; back.title = 'Show this session as chat (⌘T)'; back.onclick = () => setView(t, 'chat'); t.el.appendChild(back);
+  Object.assign(t, { backBtn: back, chatEl: c, msgs: c.querySelector('.cmsgs'), col: c.querySelector('.ccol'), ta: c.querySelector('textarea'), live: c.querySelector('.clive'),
+    ask: c.querySelector('.cask'), modeEl: c.querySelector('.cpill.mode'), ctok: c.querySelector('.ctok'), chips: {}, chatOff: 0, chatSid: null, group: null });
+  const termFocus = t.term.focus.bind(t.term); t.termFocus = termFocus;
+  t.term.focus = () => t.mode === 'chat' ? t.ta.focus() : termFocus(); // every existing "focus the session" call lands in the right place
+  // Grows with the text up to ~45% of the pane; the scrollbar only shows once lines are hidden.
+  const fitTa = () => { const max = Math.max(180, t.chatEl.clientHeight * 0.45); t.ta.style.height = 'auto'; t.ta.style.height = Math.min(t.ta.scrollHeight, max) + 'px'; t.ta.style.overflowY = t.ta.scrollHeight > max ? 'auto' : 'hidden'; };
+  t.ta.addEventListener('input', fitTa);
+  t.ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(t, key); fitTa(); }
+    else if (e.key === 'Escape' && t.live && !t.live.hidden) { e.preventDefault(); ipc.send('write', key, '\x1b'); }
+    else if (e.key === 'Tab' && e.shiftKey) { e.preventDefault(); ipc.send('write', key, '\x1b[Z'); } // cycle mode, as in the terminal
+  });
+  t.ta.addEventListener('paste', e => { if ([...(e.clipboardData && e.clipboardData.items || [])].some(i => i.type.startsWith('image/'))) { e.preventDefault(); ipc.send('write', key, '\x16'); t.ta.placeholder = 'Image added. Type your message…'; } });
+  c.addEventListener('click', e => {
+    const d = e.target.closest('[data-stop],[data-term],.csend,.cstep,[data-opt],[data-esc],a[data-url],img');
+    if (!d) return;
+    if (d.dataset.stop !== undefined) ipc.send('write', key, '\x1b');
+    else if (d.dataset.term !== undefined) setView(t, 'term');
+    else if (d.classList.contains('csend')) chatSend(t, key);
+    else if (d.dataset.esc !== undefined) ipc.send('write', key, '\x1b');
+    else if (d.dataset.opt !== undefined) { const m = t.menu; if (!m) return; const n = +d.dataset.opt - m.sel; ipc.send('write', key, (n > 0 ? '\x1b[B' : '\x1b[A').repeat(Math.abs(n)) + '\r'); t.ask.hidden = true; }
+    else if (d.dataset.url) ipc.send('url', d.dataset.url);
+    else if (d.tagName === 'IMG') { $('lb').querySelector('img').src = d.src; $('lb').hidden = false; }
+    else if (d.classList.contains('cstep')) { const pre = d.parentNode.nextSibling, open = !d.classList.contains('open');
+      d.parentNode.querySelectorAll('.cstep.open').forEach(x => x.classList.remove('open'));
+      if (open) { d.classList.add('open'); pre.innerHTML = d.dataset.html; pre.hidden = false; } else pre.hidden = true; }
+  });
+  setView(t, deskPrefs.view === 'term' ? 'term' : 'chat');
+}
+function setView(t, m) { t.mode = m; t.chatEl.hidden = m !== 'chat'; t.backBtn.hidden = m === 'chat'; if (m === 'chat') { t.msgs.scrollTop = t.msgs.scrollHeight; t.ta.focus(); } else t.termFocus(); }
+function chatSend(t, key) {
+  const text = t.ta.value; if (!text.trim()) return;
+  t.ta.value = ''; t.ta.placeholder = 'Reply to Claude…';
+  // Sent as one bracketed paste, then Enter on its own: typed-fast text plus Enter in one burst counts as a paste and the Enter is swallowed.
+  ipc.send('write', key, '\x1b[200~' + text + '\x1b[201~');
+  setTimeout(() => ipc.send('write', key, '\r'), 150);
+  // Show it at once as a normal bubble; the transcript copy replaces it when Claude takes it in (queued messages wait).
+  if (!text.startsWith('/') && !t.menu) { const d = document.createElement('div'); d.className = 'cme pend'; d.textContent = text; t.col.appendChild(d); }
+  if (text.startsWith('/') && !KEEP_IN_CHAT.test(text.trim())) setView(t, 'term');
+  t.msgs.scrollTop = t.msgs.scrollHeight;
+}
+// Read Claude's screen: working line, mode, and a menu (numbered options with ❯ on the picked one).
+function scanTerm(t) {
+  const b = t.term.buffer.active, rows = [];
+  for (let i = b.baseY; i < b.baseY + t.term.rows; i++) { const l = b.getLine(i); rows.push(l ? l.translateToString(true) : ''); }
+  const clean = s => s.replace(/[│╭╮╰╯─━┃]/g, '').trim();
+  let liveTxt = '', mode = '';
+  for (const r of rows) {
+    if (/esc to interrupt/.test(r) || /^\s*[✻✽✶✳✢·∗*]\s+\w+…/.test(r)) liveTxt = r.replace(/^\s*\S\s+/, '').replace(/[·\s(]*esc to interrupt\)?/, '').trim();
+    const m = r.match(/(auto mode|accept edits|plan mode|bypass permissions) on/i); if (m) mode = m[1];
+  }
+  // A menu: a numbered "❯ 1." line (not the prompt box, which sits right under a rule) plus sibling lines at the same indent.
+  // Must be numbered: queued messages also show as "❯ text" with wrapped lines at the same indent, and became fake buttons.
+  const cl = r => r.replace(/[│┃]/g, ' '), rule = r => /^\s*[─━╌]{5,}/.test(r);
+  let menu = null;
+  for (let i = rows.length - 1; i > 0 && !menu; i--) {
+    const r = cl(rows[i]), at = r.search(/❯\s*\d+[.)]\s/); if (at < 0 || rule(rows[i - 1]) || r.slice(0, at).trim()) continue;
+    // Options can have description lines (deeper indent) or a rule between them (Claude's question menus), so walk
+    // the block: anything with nothing at or left of the ❯ column belongs to it; keep only the numbered lines.
+    const inBlock = j => { const x = cl(rows[j] || ''); return rule(rows[j]) || !x.slice(0, at + 1).trim(); };
+    let a = i, z = i; while (a > 0 && !rule(rows[a - 1]) && inBlock(a - 1)) a--; while (z + 1 < rows.length && inBlock(z + 1)) z++;
+    const num = j => { const x = cl(rows[j]), d = x.search(/\d+[.)]\s/); return j === i || (d >= at && d <= at + 4 && !x.slice(0, d).replace('❯', '').trim()); };
+    const lines = []; for (let j = a; j <= z; j++) if (!rule(rows[j]) && num(j)) lines.push(j);
+    if (lines.length < 2) continue;
+    const opts = lines.map(j => cl(rows[j]).slice(at).replace(/^❯?\s*(\d+[.)]\s+)?/, '').trim());
+    const q = []; for (let j = lines[0] - 1; j >= 0 && q.length < 6 && !rule(rows[j]); j--) { const x = clean(rows[j]); if (x) q.unshift(x); }
+    menu = { q: q.join('\n'), opts: opts.map(label => ({ label })), sel: lines.indexOf(i) };
+  }
+  t.live.hidden = !liveTxt; t.live.querySelector('.ltxt').textContent = liveTxt;
+  t.modeEl.hidden = !mode; t.modeEl.textContent = mode;
+  const sig = menu && menu.q + '|' + menu.opts.map(o => o.label).join('|');
+  t.menu = menu;
+  if (sig !== t.menuSig) { t.menuSig = sig; t.ask.hidden = !menu;
+    if (menu) t.ask.innerHTML = `<div class="q">${esc(menu.q || 'Claude needs an answer')}</div><div class="acts">${menu.opts.map((o, i) => `<button class="cbtn${i === 0 ? ' go' : ''}" data-opt="${i}">${esc(o.label)}</button>`).join('')}<button class="cbtn" data-esc>Esc</button></div>`; }
+}
+function chatAdd(t, it) {
+  const col = t.col, emp = col.querySelector('.cempty'); if (emp) emp.remove();
+  const botBody = () => { if (!t.group) { const g = document.createElement('div'); g.className = 'cbot'; g.innerHTML = '<div class="cav">✻</div><div class="cbody"></div>'; col.appendChild(g); t.group = g.lastChild; } return t.group; };
+  if (it.k === 'user') { t.group = null; t.col.querySelector('.cme.pend')?.remove(); const d = document.createElement('div'); d.className = 'cme'; d.textContent = it.text; for (const s of it.imgs) { const im = document.createElement('img'); im.src = s; d.appendChild(im); } col.appendChild(d); }
+  else if (it.k === 'cmd' && it.text !== '/clear') { t.group = null; const d = document.createElement('div'); d.className = 'ccmd'; d.textContent = it.text; col.appendChild(d); }
+  else if (it.k === 'bot') { const d = document.createElement('div'); d.innerHTML = md(it.text); botBody().appendChild(d); }
+  // Tool steps (Bash, Agent… chips) are not shown: Raf finds them noise. Full detail stays in the terminal (⌘T).
+}
+async function pollChat(t) {
+  if (!t.chatEl || t.chatBusy || !t.sessionId) return;
+  if (t.chatSid !== t.sessionId) { t.chatSid = t.sessionId; t.chatOff = 0; t.chips = {}; t.group = null; t.col.innerHTML = ''; } // /clear: new chat
+  t.chatBusy = true;
+  try {
+    const sid = t.sessionId, r = await ipc.invoke('chat', sid, t.chatOff);
+    if (t.chatSid !== sid || !Object.values(tabs).includes(t)) return;
+    t.chatOff = r.next; if (!r.items.length) return;
+    const atEnd = t.msgs.scrollHeight - t.msgs.scrollTop - t.msgs.clientHeight < 80;
+    // ponytail: a resumed long session draws only its last 400 items; the full history is in the terminal (⌘T)
+    const items = !t.col.children.length && r.items.length > 400 ? r.items.slice(-400) : r.items;
+    for (const it of items) chatAdd(t, it);
+    if (atEnd) t.msgs.scrollTop = t.msgs.scrollHeight;
+  } catch {} finally { t.chatBusy = false; }
+}
+function chatTick(t) { if (!t || !t.chatEl || t.chatTimer) return; t.chatTimer = setTimeout(() => { t.chatTimer = 0; scanTerm(t); pollChat(t); }, 250); }
+window.addEventListener('keydown', e => { if (e.metaKey && !e.shiftKey && !e.altKey && !e.ctrlKey && e.key.toLowerCase() === 't' && tabs[active]) { e.preventDefault(); e.stopPropagation(); const t = tabs[active]; setView(t, t.mode === 'chat' ? 'term' : 'chat'); } }, true);
 
 // Sessions that kept running while the app was closed come back as tabs.
 async function restoreTabs() {
@@ -496,7 +676,7 @@ async function loadUsage(t) {
     `${u.turns} turns · out ${fmt(u.output)} · in ${fmt(u.input)} · cache read ${fmt(u.cacheRead)} · cache write ${fmt(u.cacheWrite)}`;
 }
 
-ipc.on('data', (e, k, d) => tabs[k] && tabs[k].term.write(d));
+ipc.on('data', (e, k, d) => { if (tabs[k]) { tabs[k].term.write(d); chatTick(tabs[k]); } });
 ipc.on('exit', (e, k) => tabs[k] && tabs[k].term.write('\r\n\x1b[2m[session ended — ✕ to close it]\x1b[0m\r\n'));
 
 $('list').addEventListener('click', async e => {
@@ -724,7 +904,7 @@ async function tabBadges() {
   for (const k of panes.length ? panes : [active]) {
     const t = tabs[k]; if (!t) continue;
     const s = sessions.find(x => x.id === t.sessionId), u = s && await ipc.invoke('tabUsage', s.file).catch(() => null);
-    t.tok.textContent = u && u.tok ? `${TOK(u.tok)} tokens · ${USD(u.c)}` : '';
+    t.tok.textContent = u && u.tok ? `${TOK(u.tok)} tokens · ${USD(u.c)}` : ''; if (t.ctok) t.ctok.textContent = t.tok.textContent;
   }
 }
 setInterval(tabBadges, 5000);
