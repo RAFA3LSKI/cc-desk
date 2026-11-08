@@ -142,7 +142,7 @@
   .clive { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:12.5px; } .clive .ltxt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .clive i { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s ease-in-out infinite; flex:none; }
   .cask { border:1px solid #5a4630; background:#241e17; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
-  .cask .q { white-space:pre-wrap; font-size:13px; } .cask .acts { display:flex; gap:6px; flex-wrap:wrap; }
+  .cask .q { white-space:pre-wrap; font-size:13px; } .cask .ctype { flex:1; min-width:180px; background:var(--raise); border:1px solid #5a4630; color:var(--text); border-radius:8px; padding:5px 10px; font:inherit; outline:none; } .cask .acts { display:flex; gap:6px; flex-wrap:wrap; }
   .cbtn { border-radius:8px; padding:4px 12px; font-size:12.5px; border:1px solid var(--line); background:var(--raise2); color:var(--text); text-align:center; }
   .cbtn.go { background:var(--accent); border-color:var(--accent); color:#1d1408; font-weight:600; }
   .ccomp { border:1px solid var(--line); background:var(--raise); border-radius:16px; padding:7px 8px 7px 14px; display:flex; align-items:flex-end; gap:8px; }
@@ -448,12 +448,16 @@ function initChat(t, key) {
   });
   t.ta.addEventListener('paste', e => { if ([...(e.clipboardData && e.clipboardData.items || [])].some(i => i.type.startsWith('image/'))) { e.preventDefault(); ipc.send('write', key, '\x16'); t.ta.placeholder = 'Image added. Type your message…'; } });
   c.addEventListener('click', e => {
-    const d = e.target.closest('[data-stop],[data-term],.csend,.cstep,[data-opt],[data-esc],a[data-url],img');
+    const d = e.target.closest('[data-stop],[data-term],.csend,.cstep,[data-opt],[data-esc],[data-typesend],a[data-url],img');
     if (!d) return;
     if (d.dataset.stop !== undefined) ipc.send('write', key, '\x1b');
     else if (d.dataset.term !== undefined) setView(t, 'term');
     else if (d.classList.contains('csend')) chatSend(t, key);
     else if (d.dataset.esc !== undefined) ipc.send('write', key, '\x1b');
+    else if (d.dataset.typesend !== undefined) typeAnswer(t, key);
+    else if (d.dataset.opt !== undefined && TYPE_OPT.test(d.textContent)) { // free-text option: ask for the text here, then type it into that option
+      t.typeOpt = +d.dataset.opt; t.ask.querySelector('.acts').innerHTML = '<input class="ctype" placeholder="Type your answer…"><button class="cbtn go" data-typesend>Send</button><button class="cbtn" data-esc>Esc</button>';
+      const inp = t.ask.querySelector('.ctype'); inp.focus(); inp.onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); typeAnswer(t, key); } }; }
     else if (d.dataset.opt !== undefined) { const m = t.menu; if (!m) return; const n = +d.dataset.opt - m.sel; ipc.send('write', key, (n > 0 ? '\x1b[B' : '\x1b[A').repeat(Math.abs(n)) + '\r'); t.ask.hidden = true; }
     else if (d.dataset.url) ipc.send('url', d.dataset.url);
     else if (d.tagName === 'IMG') { $('lb').querySelector('img').src = d.src; $('lb').hidden = false; }
@@ -464,6 +468,15 @@ function initChat(t, key) {
   setView(t, deskPrefs.view === 'term' ? 'term' : 'chat');
 }
 function setView(t, m) { t.mode = m; t.chatEl.hidden = m !== 'chat'; t.backBtn.hidden = m === 'chat'; if (m === 'chat') { t.msgs.scrollTop = t.msgs.scrollHeight; t.ta.focus(); } else t.termFocus(); }
+const TYPE_OPT = /^(type something|other)\b/i;
+// Move to the free-text option, type the answer on it, Enter. Spaced out so Claude treats them as separate keystrokes.
+function typeAnswer(t, key) {
+  const m = t.menu, inp = t.ask.querySelector('.ctype'); if (!m || !inp || !inp.value.trim()) return;
+  const n = t.typeOpt - m.sel, text = inp.value;
+  ipc.send('write', key, (n > 0 ? '\x1b[B' : '\x1b[A').repeat(Math.abs(n)));
+  setTimeout(() => ipc.send('write', key, text), 150); setTimeout(() => ipc.send('write', key, '\r'), 400);
+  t.ask.hidden = true; t.menuSig = null;
+}
 function chatSend(t, key) {
   const text = t.ta.value; if (!text.trim()) return;
   t.ta.value = ''; t.ta.placeholder = 'Reply to Claude…';

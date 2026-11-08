@@ -338,6 +338,10 @@ async function run() {
     await screen('← ☐ Pairs ☐ Pain point ✔ Submit →\r\n\r\nQ2: which pain point does the video sell?\r\n\r\n❯ 1. Wrinkles/fine lines (Recommended)\r\n     Five Below already took age/sun spots\r\n  2. Dark spots\r\n     Same as the reference hero\r\n  3. Type something.\r\n' + '─'.repeat(40) + '\r\n  4. Chat about this\r\n\r\nEnter to select · Tab/Arrow keys to navigate · Esc to cancel');
     await R(`scanTerm(tabs[active]), 0`); const qm = JSON.parse(await R(`JSON.stringify(tabs[active].menu)`) || 'null');
     ok(qm && qm.opts.map(o => o.label).join('|') === 'Wrinkles/fine lines (Recommended)|Dark spots|Type something.|Chat about this' && qm.sel === 0 && /Q2: which pain point/.test(qm.q), 'question menu with descriptions not read: ' + JSON.stringify(qm));
+    const ty = JSON.parse(await R(`(async () => { const t = tabs[active], btn = [...t.ask.querySelectorAll('[data-opt]')].find(b => /^Type something/.test(b.textContent)); if (!btn) return JSON.stringify({ err: 'no Type button' });
+      btn.click(); const inp = t.ask.querySelector('.ctype'); if (!inp) return JSON.stringify({ err: 'no text box' }); inp.value = 'purple dragon'; __w.length = 0;
+      t.ask.querySelector('[data-typesend]').click(); await new Promise(r => setTimeout(r, 600)); return JSON.stringify({ w: __w.join(''), hidden: t.ask.hidden }); })()`));
+    ok(ty.w === '\x1b[B\x1b[Bpurple dragon\r' && ty.hidden, 'Type something box: ' + JSON.stringify(ty));
     await R(`ipc.send = __o; 0`);
   });
   await flow('31 images: thumbnails sit on their own chat line inside the terminal, click enlarges, survive a redraw, never on the prompt box', async () => {
