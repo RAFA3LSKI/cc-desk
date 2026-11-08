@@ -16,7 +16,7 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 - **Mac notifications** when a session finishes or needs you; click to jump there
 - **Settings window** (⌘,) for model, effort, permissions, theme, notifications, plugins, connections (`claude mcp list`)
 - **Sessions that survive quitting:** a small background helper holds them, so quit or update the app and they keep working, then reconnect when you reopen it. You choose in Settings whether quitting asks first. Sessions untouched for 24 hours stop on their own; their chats stay saved.
-- **Split view:** see up to 4 sessions at once: two side by side, two stacked, three columns, two beside each other with one across the top or bottom, or a 2×2 grid. Drag the dividers to resize; the layout is remembered across restarts.
+- **Split view:** as many sessions on screen as you like. Start from a preset (side by side, stacked, three columns, one across the top or bottom, 2×2), then split any pane right (⌘D) or down (⇧⌘D) from its name strip, drag a pane's name strip or an Open tab from the sidebar onto another pane (middle swaps, an edge puts it beside), and drag any divider: it only resizes the panes either side. The layout is remembered across restarts.
 - **Hide the sidebar** (button or ⌘B) so split panes get the full width; also remembered.
 - **Continue on your phone:** every session starts with Claude Code's `--remote-control`, so you can pick it up in the Claude phone app or at claude.ai/code.
 - **Phone alerts (optional):** when Claude has waited over 90 seconds for an answer or permission, even with the app closed, using the free ntfy app.

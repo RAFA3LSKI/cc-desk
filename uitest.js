@@ -387,6 +387,60 @@ async function run() {
     ok(r.got[0] === r.rows && r.got[1] === r.cols, `pty size ${r.got[1]}x${r.got[0]} vs xterm ${r.cols}x${r.rows}`);
     await R(`closeTab(${JSON.stringify(k)})`); await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
+  // Pane tree (2026-11-08): drag tabs between panes, resize each pane on its own, no pane cap, split any pane.
+  const PT = `const box = k => { const r = tabs[k].el.getBoundingClientRect(); return { l: r.left, t: r.top, w: r.width, h: r.height }; };
+    const fitted = () => panes.every(k => { const t = tabs[k], d = t.fit.proposeDimensions(); return d.cols === t.term.cols && d.rows === t.term.rows; });
+    const drag = (el, x0, y0, x1, y1) => { el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: x0, clientY: y0 })); window.dispatchEvent(new MouseEvent('mousemove', { clientX: (x0 + x1) / 2, clientY: (y0 + y1) / 2 }));
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: x1, clientY: y1 })); window.dispatchEvent(new MouseEvent('mouseup', { clientX: x1, clientY: y1 })); };`;
+  const P = js => R(`(() => { ${PT} ${js} })()`);
+  await flow('33 drag tabs: a pane head onto another pane swaps them, a sidebar tab onto a pane edge splits only that pane', async () => {
+    while (await R(`Object.keys(tabs).length`) < 3) { await R(`$('new').click()`); await sleep(300); }
+    await R(`document.querySelector('#layouts [data-l="cols2"]').click()`); await sleep(200);
+    const before = await R(`[...panes]`);
+    await P(`const h = document.querySelector('.paneHead[data-key="' + panes[1] + '"]').getBoundingClientRect(), b = box(panes[0]); drag(document.querySelector('.paneHead[data-key="' + panes[1] + '"]'), h.left + 20, h.top + 10, b.l + b.w / 2, b.t + b.h / 2);`); await sleep(200);
+    ok(JSON.stringify(await R(`panes`)) === JSON.stringify([before[1], before[0]]), 'head drop on the middle did not swap ' + JSON.stringify([before, await R(`panes`)]));
+    const r = JSON.parse(await P(`const out = Object.keys(tabs).find(k => !panes.includes(k)), w0 = box(panes[0]).w, w1 = box(panes[1]).w, b = box(panes[1]), row = document.querySelector('#list .it[data-key="' + out + '"]').getBoundingClientRect();
+      drag(document.querySelector('#list .it[data-key="' + out + '"]'), row.left + 30, row.top + 8, b.l + b.w - 5, b.t + b.h / 2);
+      return JSON.stringify({ out, w0, w1, panes, a: box(panes[0]).w, b: box(panes[1]).w, c: panes[2] && box(panes[2]).w, fitted: fitted(), zone: $('dropZone').hidden, layout });`));
+    ok(r.panes.length === 3 && r.panes[2] === r.out, 'sidebar tab dropped on the right edge is not the new right pane ' + JSON.stringify(r));
+    ok(Math.abs(r.a - r.w0) < 2 && Math.abs(r.b - r.w1 / 2) < 12 && Math.abs(r.c - r.w1 / 2) < 12, 'edge drop should halve only the pane it landed on ' + JSON.stringify(r));
+    ok(r.fitted && r.zone && r.layout === null, 'after drop: fitted/zone hidden/layout custom ' + JSON.stringify(r));
+  });
+  await flow('34 each pane resizes on its own: the top divider of 2x2 leaves the bottom row alone', async () => {
+    while (await R(`Object.keys(tabs).length`) < 4) { await R(`$('new').click()`); await sleep(300); }
+    await R(`document.querySelector('#layouts [data-l="grid4"]').click()`); await sleep(200);
+    const r = JSON.parse(await P(`const w = panes.map(k => box(k).w), d = [...document.querySelectorAll('.divider.x')].map(e => e.getBoundingClientRect()).sort((a, b) => a.top - b.top)[0];
+      drag(document.querySelector('.divider.x'), d.left + 2, d.top + d.height / 2, d.left - 150, d.top + d.height / 2);
+      return JSON.stringify({ n: document.querySelectorAll('.divider.x').length, w, w2: panes.map(k => box(k).w), fitted: fitted() });`));
+    ok(r.n === 2, 'grid4 should have one vertical divider per row, got ' + r.n);
+    ok(r.w2[0] < r.w[0] - 100 && r.w2[1] > r.w[1] + 100, 'top row did not resize ' + JSON.stringify(r));
+    ok(Math.abs(r.w2[2] - r.w[2]) < 2 && Math.abs(r.w2[3] - r.w[3]) < 2, 'bottom row moved with the top divider ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
+  });
+  await flow('35 more than 4 panes: Cmd+D / Shift+Cmd+D split the focused pane, 6 sessions on screen, all fitted, none overlapping', async () => {
+    while (await R(`Object.keys(tabs).length`) < 6) { await R(`$('new').click()`); await sleep(300); }
+    await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true, bubbles: true }))`); await sleep(100);
+    await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'D', metaKey: true, shiftKey: true, bubbles: true }))`); await sleep(200);
+    const r = JSON.parse(await P(`const b = panes.map(box); return JSON.stringify({ n: leaves().length, panes: panes.length, b, fitted: fitted(), heads: document.querySelectorAll('.paneHead').length, on: document.querySelectorAll('#layouts .on').length });`));
+    const apart = (a, b) => a.l + a.w <= b.l + 1 || b.l + b.w <= a.l + 1 || a.t + a.h <= b.t + 1 || b.t + b.h <= a.t + 1;
+    ok(r.n === 6 && r.panes === 6 && r.heads === 6, 'panes ' + JSON.stringify(r)); ok(r.b.every((x, i) => r.b.every((y, j) => i === j || apart(x, y))) && r.b.every(x => x.w > 60 && x.h > 30), 'overlap/size ' + JSON.stringify(r.b));
+    ok(r.fitted, 'not every pane fitted'); ok(r.on === 0, 'a preset button still shows as current after a manual split');
+  });
+  await flow('36 split a pane from its head, close the pane (session keeps running), layout survives a reload', async () => {
+    await R(`document.querySelector('#layouts [data-l="cols2"]').click()`); await sleep(200);
+    const r = JSON.parse(await P(`const k0 = panes[0], k1 = panes[1], h0 = box(k0).h, w1 = box(k1).w; document.querySelector('.paneHead[data-key="' + k0 + '"] [data-split="y"]').click();
+      const after = { n: leaves().length, h0s: box(k0).h, w1b: box(k1).w, newK: panes.find(k => k !== k0 && k !== k1) };
+      document.querySelector('.paneHead[data-key="' + after.newK + '"] [data-closepane]').click();
+      return JSON.stringify({ h0, w1, ...after, n2: leaves().length, h0c: box(k0).h, stillOpen: !!tabs[after.newK], gone: !panes.includes(after.newK) });`));
+    ok(r.n === 3 && r.newK && Math.abs(r.h0s - r.h0 / 2) < 30, 'split down should add a pane under it and halve it ' + JSON.stringify(r));
+    ok(Math.abs(r.w1b - r.w1) < 2, 'splitting the left pane moved the right one ' + JSON.stringify(r));
+    ok(r.n2 === 2 && r.stillOpen && r.gone && Math.abs(r.h0c - r.h0) < 2, 'close pane ' + JSON.stringify(r));
+    await R(`splitActive('y')`); await sleep(100);
+    const saved = await R(`JSON.stringify(tree)`); await R(`tree = { k: null }; layout = 'one'; loadSplit(); applyLayout()`); await sleep(100);
+    ok(await R(`JSON.stringify(tree)`) === saved && await R(`leaves().length`) === 3, 'tree not restored from storage');
+    await R(`localStorage.setItem('split', JSON.stringify({ layout: 'grid4', panes: [], ratios: { a: .5, b: .5 } })); loadSplit(); applyLayout()`); await sleep(100);
+    ok(await R(`leaves().length === 4 && layout === 'grid4'`), 'old saved layout format not mapped onto the tree');
+    await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
+  });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');
   note('25 Update & restart click', 'NOT_TESTED_runs install.sh and relaunches');

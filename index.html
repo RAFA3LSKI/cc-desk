@@ -49,6 +49,9 @@
   .xterm-viewport::-webkit-scrollbar { width:8px; } .xterm-viewport::-webkit-scrollbar-track { background:transparent; } .xterm-viewport::-webkit-scrollbar-thumb { background:#4a4945; border-radius:4px; }
   .paneHead { position:absolute; height:24px; line-height:24px; padding:0 10px; font-size:12px; color:var(--dim); background:var(--side); border-bottom:2px solid var(--line); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-sizing:border-box; }
   .paneHead.on { color:var(--text); border-bottom-color:var(--accent); }
+  .paneHead { display:flex; gap:2px; cursor:grab; } .paneHead .ph { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .paneHead .pb { font-weight:normal; padding:0 5px; color:var(--dim); cursor:pointer; visibility:hidden; } .paneHead:hover .pb { visibility:visible; } .paneHead .pb:hover { color:var(--text); }
+  #dropZone { position:absolute; z-index:6; background:rgba(217,119,87,.18); border:2px solid var(--accent); border-radius:6px; pointer-events:none; }
   .ximgs { position:absolute; inset:0; pointer-events:none; z-index:4; } .ximg { pointer-events:auto; position:absolute; left:0; top:2px; max-height:72px; max-width:160px; border-radius:5px; border:1px solid #5a5853; box-shadow:0 2px 8px rgba(0,0,0,.5); cursor:zoom-in; background:#1f1e1d; }
   #lb { position:absolute; inset:0; z-index:20; background:rgba(0,0,0,.88); cursor:zoom-out; } #lb:not([hidden]) { display:flex; align-items:center; justify-content:center; }
   #lb img { max-width:96%; max-height:96%; object-fit:contain; }
@@ -125,7 +128,7 @@
 <div id="main">
   <div id="bar"><button id="sideBtn" title="Hide or show the sidebar (⌘B)" aria-label="Toggle sidebar"><svg width="16" height="13" viewBox="0 0 16 13" fill="none" stroke="currentColor" aria-hidden="true"><rect x=".5" y=".5" width="15" height="12" rx="1.5"/><path d="M5.5 1v11"/></svg></button><span id="title">CC Desk</span><span id="use"></span><div id="layouts"><button data-l="one" title="One session" aria-label="One session"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="13" rx="1"/></svg></button><button data-l="cols2" title="Side by side" aria-label="Side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="13" rx="1"/><rect x="9.5" y="0" width="8.5" height="13" rx="1"/></svg></button><button data-l="rows2" title="Top and bottom" aria-label="Top and bottom"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="cols3" title="Three side by side" aria-label="Three side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="5.3" height="13" rx="1"/><rect x="6.3" y="0" width="5.4" height="13" rx="1"/><rect x="12.7" y="0" width="5.3" height="13" rx="1"/></svg></button><button data-l="top1" title="One on top, two below" aria-label="One on top, two below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="bottom1" title="Two on top, one below" aria-label="Two on top, one below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="grid4" title="Four, two by two" aria-label="Four, two by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button></div>
     <button id="rewind" title="Go back to an earlier point in this session (/rewind)" hidden>⟲ Rewind</button></div>
-  <div id="terms"><div id="lb" hidden><img></div><div id="empty"><div style="font-size:22px">✳</div><div>Pick a session on the left, or start a new one.</div></div></div>
+  <div id="terms"><div id="dropZone" hidden></div><div id="lb" hidden><img></div><div id="empty"><div style="font-size:22px">✳</div><div>Pick a session on the left, or start a new one.</div></div></div>
   <div id="tip"></div>
 </div>
 <div id="panel" hidden></div>
@@ -298,7 +301,7 @@ function syncTabTitles() {
   for (const t of Object.values(tabs)) { const s = sessions.find(x => x.id === t.sessionId); if (s && !s.empty && s.title !== t.title) { t.title = s.title; changed = true; } }
   if (!changed) return;
   if (active && tabs[active]) $('title').textContent = tabs[active].title;
-  document.querySelectorAll('.paneHead[data-pane]').forEach(h => { const k = panes[+h.dataset.pane]; if (k && tabs[k]) h.textContent = tabs[k].title; });
+  document.querySelectorAll('.paneHead[data-key]').forEach(h => { const t = tabs[h.dataset.key]; if (t) h.firstChild.textContent = t.title; });
   render();
 }
 
@@ -357,49 +360,106 @@ async function restoreTabs() {
   const items = await ipc.invoke('running').catch(() => []); if (!items.length) return;
   await refresh();
   for (const x of items) { if (tabs[x.key]) continue; const m = x.meta || {}, t = makeTab(x.key, m.resumeId || null, m.cwd, (sessions.find(s => s.id === m.resumeId) || {}).title || m.title); t.pid = x.pid; }
-  try { const sv = JSON.parse(localStorage.getItem('split')); if (sv && LAYOUT_N[sv.layout]) { layout = sv.layout; ratios = sv.ratios; panes = sv.panes.filter(k => tabs[k]); } } catch {}
-  show(panes[0] || Object.keys(tabs)[0]); await refreshLive();
+  loadSplit();
+  show(leaves().map(l => l.k).find(k => tabs[k]) || Object.keys(tabs)[0]); await refreshLive();
   for (const x of items) { const t = tabs[x.key]; if (t) { t.fit.fit(); ipc.send('attach', x.key, t.term.cols, t.term.rows); } }
 }
 
-// Split view: up to 4 sessions on screen. panes[i] = tab key or null; `active` is the pane that typing and clicks in the sidebar go to.
-let layout = 'one', panes = [], ratios = { a: 0.5, b: 0.5 };
-const LAYOUT_N = { one: 1, cols2: 2, rows2: 2, cols3: 3, top1: 3, bottom1: 3, grid4: 4 };
-const paneRects = () => { const { a, b } = ratios; return { one: [[0, 0, 1, 1]], cols2: [[0, 0, a, 1], [a, 0, 1 - a, 1]], rows2: [[0, 0, 1, a], [0, a, 1, 1 - a]], cols3: [[0, 0, a, 1], [a, 0, b - a, 1], [b, 0, 1 - b, 1]],
-  top1: [[0, 0, 1, a], [0, a, b, 1 - a], [b, a, 1 - b, 1 - a]], bottom1: [[0, 0, b, a], [b, 0, 1 - b, a], [0, a, 1, 1 - a]],
-  grid4: [[0, 0, a, b], [a, 0, 1 - a, b], [0, b, a, 1 - b], [a, b, 1 - a, 1 - b]] }[layout]; };
-const paneDividers = () => { const { a, b } = ratios; return { one: [], cols2: [['a', 'x', a, 0, 1]], rows2: [['a', 'y', a, 0, 1]], cols3: [['a', 'x', a, 0, 1], ['b', 'x', b, 0, 1]], top1: [['a', 'y', a, 0, 1], ['b', 'x', b, a, 1]], bottom1: [['a', 'y', a, 0, 1], ['b', 'x', b, 0, a]], grid4: [['a', 'x', a, 0, 1], ['b', 'y', b, 0, 1]] }[layout]; };
+// Split view (2026-11-08, Raf: "as much freedom as possible"): a tree of panes. Leaf = { k: tab key or null }; split = { d: 'x' side by side | 'y' stacked, c: [children], r: [shares, sum 1] }.
+// Any pane splits again (no cap), each divider only moves the two panes beside it, tabs drag between panes (head or sidebar row: middle = swap, edge = new pane there).
+// `panes` = tab keys on screen in order; `active` = the pane typing and sidebar clicks go to; `layout` = the preset button it came from (null once changed by hand).
+let tree = { k: null }, layout = 'one', panes = [], paneBoxes = [];
+const leaf = (k = null) => ({ k }), split = (d, ...c) => ({ d, c, r: c.map(() => 1 / c.length) });
+const PRESETS = { one: () => leaf(), cols2: () => split('x', leaf(), leaf()), rows2: () => split('y', leaf(), leaf()), cols3: () => split('x', leaf(), leaf(), leaf()),
+  top1: () => split('y', leaf(), split('x', leaf(), leaf())), bottom1: () => split('y', split('x', leaf(), leaf()), leaf()), grid4: () => split('y', split('x', leaf(), leaf()), split('x', leaf(), leaf())) };
+const leaves = (n = tree) => n.c ? n.c.flatMap(c => leaves(c)) : [n];
+const parentOf = (n, p = tree) => !p.c ? null : p.c.includes(n) ? p : p.c.reduce((f, c) => f || parentOf(n, c), null);
+const validTree = n => !!n && (n.c ? (n.d === 'x' || n.d === 'y') && n.c.length > 1 && n.r.length === n.c.length && n.c.every(validTree) : 'k' in n);
+function dropLeaf(n) { // the neighbour takes its space; a split left with one child is replaced by that child
+  const p = parentOf(n); if (!p) return; const i = p.c.indexOf(n);
+  p.c.splice(i, 1); const [sh] = p.r.splice(i, 1); p.r[Math.max(0, i - 1)] += sh;
+  if (p.c.length === 1) { const g = parentOf(p); if (g) g.c[g.c.indexOf(p)] = p.c[0]; else tree = p.c[0]; }
+}
+function splitLeaf(n, d, after = true, k = null) { // the new pane takes half of n's space
+  const p = parentOf(n), nl = leaf(k);
+  if (p && p.d === d) { const i = p.c.indexOf(n), h = p.r[i] / 2; p.c.splice(i + (after ? 1 : 0), 0, nl); p.r.splice(i, 1, h, h); }
+  else { const old = leaf(n.k); delete n.k; Object.assign(n, { d, c: after ? [old, nl] : [nl, old], r: [0.5, 0.5] }); }
+  layout = null; return nl;
+}
 const pct = n => (n * 100).toFixed(3) + '%';
 function applyLayout() {
-  const n = LAYOUT_N[layout], rects = paneRects(), split = n > 1;
-  panes = panes.filter(k => k && tabs[k]).slice(0, n); // drop closed tabs, then fill the free panes with other open sessions
-  for (const k of Object.keys(tabs)) if (panes.length < n && !panes.includes(k)) panes.push(k);
+  const ls = leaves(); for (const l of ls) if (l.k && !tabs[l.k]) l.k = null; // closed tabs leave their pane free
+  const shown = new Set(ls.map(l => l.k).filter(Boolean)); // free panes take open sessions that aren't on screen
+  for (const l of ls) if (!l.k) { const k = Object.keys(tabs).find(k => !shown.has(k)); if (k) { l.k = k; shown.add(k); } }
+  panes = ls.map(l => l.k).filter(Boolean); paneBoxes = [];
+  const many = ls.length > 1;
   document.querySelectorAll('.paneHead, .paneEmpty, .divider').forEach(x => x.remove());
   for (const [k, t] of Object.entries(tabs)) if (!panes.includes(k)) t.el.style.visibility = 'hidden';
-  rects.forEach(([x, y, w, h], i) => {
-    const k = panes[i], head = split ? 24 : 0;
+  const walk = (n, x, y, w, h) => {
+    if (n.c) { let at = 0; n.c.forEach((c, i) => { const s = n.r[i];
+        if (n.d === 'x') walk(c, x + at * w, y, s * w, h); else walk(c, x, y + at * h, w, s * h); at += s;
+        if (i < n.c.length - 1) { const d = document.createElement('div'); d.className = 'divider ' + n.d;
+          Object.assign(d.style, n.d === 'x' ? { left: pct(x + at * w), top: pct(y), height: pct(h) } : { top: pct(y + at * h), left: pct(x), width: pct(w) });
+          d.onmousedown = e => dragDivider(e, d, n, i, [x, y, w, h]); $('terms').appendChild(d); } }); return; }
+    paneBoxes.push({ n, x, y, w, h }); const k = n.k, head = many ? 24 : 0;
     const place = (el, top, bottom, l, r) => Object.assign(el.style, { inset: 'auto', left: `calc(${pct(x)} + ${l}px)`, top: `calc(${pct(y)} + ${top}px)`, width: `calc(${pct(w)} - ${l + r}px)`, height: `calc(${pct(h)} - ${top + bottom}px)` });
-    if (split) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); hd.textContent = k ? tabs[k].title : 'Empty'; hd.dataset.pane = i; place(hd, 0, 0, 0, 0); hd.style.height = '24px'; if (k) hd.onclick = () => show(k); $('terms').appendChild(hd); }
-    if (k) { const t = tabs[k]; t.el.style.visibility = 'visible'; place(t.el, head + (split ? 6 : 8), 4, split ? 8 : 12, 4); t.fit.fit(); }
-    else if (split) { const em = document.createElement('div'); em.className = 'paneEmpty'; em.textContent = 'Start or click a session on the left'; place(em, head, 0, 0, 0); $('terms').appendChild(em); }
-  });
-  for (const [name, axis, pos, from, to] of paneDividers()) {
-    const d = document.createElement('div'); d.className = 'divider ' + axis; d.dataset.r = name;
-    Object.assign(d.style, axis === 'x' ? { left: pct(pos), top: pct(from), height: pct(to - from) } : { top: pct(pos), left: pct(from), width: pct(to - from) });
-    d.onmousedown = e => dragDivider(e, d, name, axis); $('terms').appendChild(d);
-  }
+    if (many) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); if (k) hd.dataset.key = k;
+      hd.innerHTML = `<span class="ph"></span><b class="pb" data-split="x" title="Split right (⌘D)">◫</b><b class="pb" data-split="y" title="Split down (⇧⌘D)">⊟</b><b class="pb" data-closepane="1" title="Close this pane (the session keeps running)">✕</b>`;
+      hd.firstChild.textContent = k ? tabs[k].title : 'Empty'; place(hd, 0, 0, 0, 0); hd.style.height = '24px';
+      hd.onclick = e => { const b = e.target.dataset; if (b.split) { splitLeaf(n, b.split); applyLayout(); } else if (b.closepane) closePane(n); else if (k) show(k); };
+      if (k) hd.onmousedown = e => !e.target.dataset.split && !e.target.dataset.closepane && dragTab(e, k);
+      $('terms').appendChild(hd); }
+    if (k) { const t = tabs[k]; t.el.style.visibility = 'visible'; place(t.el, head + (many ? 6 : 8), 4, many ? 8 : 12, 4); t.fit.fit(); }
+    else if (many) { const em = document.createElement('div'); em.className = 'paneEmpty'; em.textContent = 'Start or click a session on the left'; place(em, head, 0, 0, 0); $('terms').appendChild(em); }
+  };
+  walk(tree, 0, 0, 1, 1);
   document.querySelectorAll('#layouts [data-l]').forEach(b => b.classList.toggle('on', b.dataset.l === layout));
-  try { localStorage.setItem('split', JSON.stringify({ layout, panes, ratios })); } catch {}
+  try { localStorage.setItem('split', JSON.stringify({ v: 2, tree, layout })); } catch {}
 }
-function dragDivider(e, d, name, axis) {
-  e.preventDefault(); d.classList.add('drag'); const box = $('terms').getBoundingClientRect();
-  const move = ev => { let v = axis === 'x' ? (ev.clientX - box.left) / box.width : (ev.clientY - box.top) / box.height;
-    const lo = layout === 'cols3' && name === 'b' ? ratios.a + 0.1 : 0.1, hi = layout === 'cols3' && name === 'a' ? ratios.b - 0.1 : 0.9;
-    ratios[name] = Math.min(hi, Math.max(lo, v)); applyLayout(); };
+function loadSplit() { // saved tree; the old { layout, panes, ratios } format maps onto its preset
+  try { const sv = JSON.parse(localStorage.getItem('split')); if (!sv) return;
+    if (sv.v === 2 && validTree(sv.tree)) { tree = sv.tree; layout = sv.layout || null; }
+    else if (PRESETS[sv.layout]) { tree = PRESETS[sv.layout](); layout = sv.layout; leaves().forEach((l, i) => l.k = (sv.panes || [])[i] || null); } } catch {}
+}
+function dragDivider(e, d, n, i, [x, y, w, h]) { // moves only the two panes on either side
+  e.preventDefault(); d.classList.add('drag'); const box = $('terms').getBoundingClientRect(), X = n.d === 'x';
+  const len = X ? w * box.width : h * box.height, before = n.r.slice(0, i).reduce((a, b) => a + b, 0), pair = n.r[i] + n.r[i + 1], min = Math.min(pair / 2, 60 / len);
+  const move = ev => { const pos = X ? ((ev.clientX - box.left) / box.width - x) / w : ((ev.clientY - box.top) / box.height - y) / h;
+    const v = Math.min(pair - min, Math.max(min, pos - before)); n.r[i] = v; n.r[i + 1] = pair - v; applyLayout(); };
   const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); if (active && tabs[active]) tabs[active].term.focus(); };
   window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
 }
-function setLayout(l) { layout = l; ratios = l === 'cols3' ? { a: 1 / 3, b: 2 / 3 } : { a: 0.5, b: 0.5 }; if (active && !panes.includes(active)) panes.unshift(active); applyLayout(); if (active && tabs[active]) tabs[active].term.focus(); }
+function closePane(n) { if (leaves().length < 2) return; dropLeaf(n); layout = null; applyLayout(); show(tabs[active] && panes.includes(active) ? active : panes[0] || null); }
+// Drag a tab (pane head or "Open" row in the sidebar) onto a pane: middle swaps/replaces, an edge splits that pane and puts the tab there.
+function dropTarget(cx, cy) {
+  const b = $('terms').getBoundingClientRect();
+  for (const p of paneBoxes) { const L = b.left + p.x * b.width, T = b.top + p.y * b.height, W = p.w * b.width, H = p.h * b.height;
+    if (cx < L || cx > L + W || cy < T || cy > T + H) continue;
+    const fx = (cx - L) / W, fy = (cy - T) / H, edge = Math.min(fx, 1 - fx, fy, 1 - fy);
+    const z = edge > 0.25 ? 'c' : edge === fx ? 'l' : edge === 1 - fx ? 'r' : edge === fy ? 't' : 'b';
+    const r = { c: [0, 0, 1, 1], l: [0, 0, .5, 1], r: [.5, 0, .5, 1], t: [0, 0, 1, .5], b: [0, .5, 1, .5] }[z];
+    return { n: p.n, z, style: { left: L - b.left + r[0] * W + 'px', top: T - b.top + r[1] * H + 'px', width: r[2] * W + 'px', height: r[3] * H + 'px' } }; }
+  return null;
+}
+function dropTab(k, { n, z }) {
+  const src = leaves().find(l => l.k === k);
+  if (z === 'c') { if (src === n) return; if (src) src.k = n.k; n.k = k; }
+  else { if (src === n) return; if (src) dropLeaf(src); splitLeaf(n, z === 'l' || z === 'r' ? 'x' : 'y', z === 'r' || z === 'b', k); }
+  show(k);
+}
+function dragTab(e, k) {
+  if (e.button) return; e.preventDefault(); const x0 = e.clientX, y0 = e.clientY, zone = $('dropZone'); let on = false, hit = null;
+  const move = ev => { if (!on && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return; on = true;
+    hit = dropTarget(ev.clientX, ev.clientY); zone.hidden = !hit; if (hit) Object.assign(zone.style, hit.style); };
+  const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); zone.hidden = true; if (on && hit && tabs[k]) dropTab(k, hit); };
+  window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+}
+function setLayout(l) {
+  const n = leaves(PRESETS[l]()).length, order = [...panes]; if (active && !order.slice(0, n).includes(active)) order.splice(n - 1, 0, active); // the focused session stays on screen
+  tree = PRESETS[l](); layout = l; leaves().forEach((x, i) => x.k = order[i] || null); applyLayout(); if (active && tabs[active]) tabs[active].term.focus();
+}
+function splitActive(d) { const n = leaves().find(l => l.k === active) || leaves()[0]; splitLeaf(n, d); applyLayout(); if (active && tabs[active]) tabs[active].term.focus(); }
+window.addEventListener('keydown', e => { if (e.metaKey && !e.altKey && !e.ctrlKey && e.key.toLowerCase() === 'd') { e.preventDefault(); e.stopPropagation(); splitActive(e.shiftKey ? 'y' : 'x'); } }, true);
 function toggleSide(on = document.body.classList.contains('noside')) {
   document.body.classList.toggle('noside', !on); try { localStorage.setItem('side', on ? '1' : '0'); } catch {}
   applyLayout(); if (active && tabs[active]) tabs[active].term.focus();
@@ -411,7 +471,7 @@ $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-
 
 function show(key) {
   // A session not on screen replaces the focused pane, or fills the first free one.
-  if (key && !panes.includes(key)) { const n = LAYOUT_N[layout]; let i = panes.indexOf(active); if (panes.length < n) i = panes.length; else if (i < 0) i = 0; panes[i] = key; }
+  if (key && !leaves().some(l => l.k === key)) { const ls = leaves(); (ls.find(l => !l.k || !tabs[l.k]) || ls.find(l => l.k === active) || ls[0]).k = key; }
   active = key;
   applyLayout();
   $('empty').hidden = !!key;
@@ -424,8 +484,8 @@ function show(key) {
 
 function closeTab(key) {
   const t = tabs[key]; if (!t) return;
-  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key]; panes = panes.filter(k => k !== key);
-  show(panes[0] || Object.keys(tabs)[0] || null); refresh();
+  ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key]; applyLayout();
+  show(tabs[active] ? active : panes[0] || Object.keys(tabs)[0] || null); refresh();
 }
 
 async function loadUsage(t) {
@@ -448,6 +508,7 @@ $('list').addEventListener('click', async e => {
   const s = sessions.find(x => x.id === it.dataset.id);
   if (s) openTab(s.id, s.cwd, s.title);
 });
+$('list').addEventListener('mousedown', e => { const it = e.target.closest('.it[data-key]'); if (it && !e.target.dataset.close) dragTab(e, it.dataset.key); });
 $('list').addEventListener('dblclick', e => {
   const it = e.target.closest('.it[data-id]'); if (!it) return;
   const s = sessions.find(x => x.id === it.dataset.id); if (!s) return;
