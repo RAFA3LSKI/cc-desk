@@ -115,14 +115,20 @@ function extras() {
 // Images in a session (pasted/dropped screenshots + images Claude opened with Read), read from its transcript from byte `from` on.
 // Only complete lines are read; `next` is where the next call starts. ponytail: base64 goes to the renderer as-is, fine for screenshots.
 const fileOf = new Map(), toolFile = new Map(); // ponytail: toolFile grows with every file-reading tool call while the app runs; small strings, fine
-function images(id, from = 0) {
-  if (!/^[0-9a-f-]{36}$/.test(id)) return { next: 0, imgs: [] };
+function fileFor(id) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) return null;
   let f = fileOf.get(id);
   if (!f || !fs.existsSync(f)) {
     f = null;
     for (const d of (() => { try { return fs.readdirSync(PROJ); } catch { return []; } })()) { const c = path.join(PROJ, d, id + '.jsonl'); if (fs.existsSync(c)) { f = c; break; } }
-    if (!f) return { next: 0, imgs: [] }; fileOf.set(id, f);
+    if (f) fileOf.set(id, f);
   }
+  return f;
+}
+// One session's title (same rule as the list), or null while it has none yet. Used by ptyd's phone alert.
+function title(id) { try { const f = fileFor(id), m = f && meta(f); return m && !m.empty ? m.title : null; } catch { return null; } }
+function images(id, from = 0) {
+  const f = fileFor(id); if (!f) return { next: 0, imgs: [] };
   const size = fs.statSync(f).size; if (size < from) from = 0; // file replaced: start over
   if (size === from) return { next: from, imgs: [] };
   const b = chunk(f, from, size - from), end = b.lastIndexOf('\n') + 1, imgs = [];
@@ -141,4 +147,4 @@ function images(id, from = 0) {
   return { next: from + Buffer.byteLength(b.slice(0, end)), imgs };
 }
 
-module.exports = { list, live, usage, rename, togglePin, extras, images, HOME };
+module.exports = { list, live, usage, rename, togglePin, extras, images, title, HOME };

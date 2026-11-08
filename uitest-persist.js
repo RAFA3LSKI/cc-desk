@@ -55,7 +55,10 @@ app.whenReady().then(async () => {
     st(pid, 'waiting'); await sleep(400); ok(posts.length === 0, 'no alert before the wait limit');
     await sleep(1000); ok(posts.length === 1 && posts[0].url === '/ccdesk-test' && posts[0].title === 'Claude needs you' && posts[0].b === 'Fixture title', 'alert after the wait limit ' + JSON.stringify(posts));
     await sleep(1200); ok(posts.length === 1, 'only one alert per wait');
-    st(pid, 'busy'); await sleep(400); st(pid, 'waiting'); await sleep(1400); ok(posts.length === 2, 'a new wait can alert again');
+    const sid = '0b7e0c1e-1111-4222-8333-444455556666', pd = path.join(os.homedir(), '.claude/projects/-ntfy'); fs.mkdirSync(pd, { recursive: true }); // a tab opened as "New session" that has a real name by now
+    fs.writeFileSync(path.join(pd, sid + '.jsonl'), JSON.stringify({ type: 'user', message: { role: 'user', content: 'fix the login bug' }, cwd: os.homedir() }) + '\n' + JSON.stringify({ type: 'ai-title', aiTitle: 'Fix login bug' }) + '\n');
+    st(pid, 'busy'); await sleep(400); fs.writeFileSync(statusF(pid), JSON.stringify({ status: 'waiting', sessionId: sid })); await sleep(1400); ok(posts.length === 2, 'a new wait can alert again');
+    ok(posts[1] && posts[1].b === 'Fix login bug', 'the alert names the session by its real title ' + JSON.stringify(posts[1]));
     st(pid, 'busy'); await sleep(300); fs.writeFileSync(prefs, JSON.stringify({ phoneAlerts: false, ntfyTopic: 'ccdesk-test' })); st(pid, 'waiting'); await sleep(1400); ok(posts.length === 2, 'phone alerts off sends nothing');
     fs.unlinkSync(statusF(pid)); c.kill('p'); await sleep(200); app.exit(0); return; }
   require('./main.js'); await sleep(1800);

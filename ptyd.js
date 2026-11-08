@@ -72,15 +72,17 @@ function server() {
     if (!S.size && !clients.size && Date.now() - emptySince > 10000) bye(); // nothing to hold, go away
   }, TICK);
   // Phone alert: once per wait, when Claude has been waiting on an answer or permission this long. Runs here so it still works with the app closed.
-  const PHONE_AFTER = +process.env.DESK_PHONE_AFTER || 90000, statusOf = pid => { try { return JSON.parse(fs.readFileSync(path.join(HOME, '.claude/sessions', pid + '.json'), 'utf8')).status; } catch { return null; } };
+  const PHONE_AFTER = +process.env.DESK_PHONE_AFTER || 90000, liveOf = pid => { try { return JSON.parse(fs.readFileSync(path.join(HOME, '.claude/sessions', pid + '.json'), 'utf8')); } catch { return {}; } };
   setInterval(() => {
     let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(path.join(HOME, '.claude-desk.json'), 'utf8')); } catch {}
     for (const [key, x] of S) {
-      if (statusOf(x.p.pid) !== 'waiting') { x.waitSince = 0; x.pinged = false; continue; }
+      const lv = liveOf(x.p.pid);
+      if (lv.status !== 'waiting') { x.waitSince = 0; x.pinged = false; continue; }
       x.waitSince = x.waitSince || Date.now();
       if (x.pinged || !cfg.phoneAlerts || !cfg.ntfyTopic || Date.now() - x.waitSince < PHONE_AFTER) continue;
       x.pinged = true; // a failed send clears this, so it retries on the next check
-      ntfy(cfg.ntfyTopic, 'Claude needs you', (x.meta && x.meta.title) || 'A session is waiting for an answer or permission').then(() => log('phone alert ' + key), e => { x.pinged = false; log('phone alert failed ' + e.message); });
+      // meta.title is the name the tab had when it opened ("New session" for new ones); the transcript has the real one by now.
+      ntfy(cfg.ntfyTopic, 'Claude needs you', require('./sessions').title(lv.sessionId) || (x.meta && x.meta.title) || 'A session is waiting for an answer or permission').then(() => log('phone alert ' + key), e => { x.pinged = false; log('phone alert failed ' + e.message); });
     }
   }, +process.env.DESK_PHONE_TICK || 15000);
   const listen = () => srv.listen(SOCK, () => log('started ' + process.pid));
