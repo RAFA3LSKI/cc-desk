@@ -57,6 +57,7 @@ ipcMain.handle('usageData', () => require('./usage').get(p => win && !win.isDest
 ipcMain.handle('tabUsage', (e, f) => require('./usage').session(f));
 ipcMain.handle('extras', () => S.extras());
 ipcMain.handle('images', (e, id, from) => S.images(id, from));
+ipcMain.handle('chat', (e, id, from) => S.chat(id, from));
 ipcMain.handle('rename', (e, file, id, n) => S.rename(file, id, n));
 ipcMain.handle('account', () => { try { const a = JSON.parse(require('fs').readFileSync(require('path').join(S.HOME, '.claude.json'), 'utf8')).oauthAccount || {};
   return { email: a.emailAddress || '', plan: a.planDisplayName || '' }; } catch { return {}; } });

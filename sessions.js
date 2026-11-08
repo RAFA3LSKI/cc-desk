@@ -147,4 +147,62 @@ function images(id, from = 0) {
   return { next: from + Buffer.byteLength(b.slice(0, end)), imgs };
 }
 
-module.exports = { list, live, usage, rename, togglePin, extras, images, title, HOME };
+// The conversation as chat items, read from byte `from` on (same incremental rule as images). Main thread only (no subagents).
+// Items: {k:'user', text, imgs} {k:'bot', text} {k:'tool', id, name, desc, detail} {k:'done', id, err} {k:'cmd', text}
+const short = (s, n = 90) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
+function toolDesc(name, i = {}) {
+  const fp = i.file_path || i.notebook_path || i.path;
+  if (name === 'Bash') return short(i.description || i.command);
+  if (fp && /^(Read|Edit|Write|MultiEdit|NotebookEdit)$/.test(name)) return path.basename(fp);
+  if (name === 'Grep' || name === 'Glob') return short(i.pattern);
+  if (name === 'Task' || name === 'Agent') return short(i.description || i.prompt);
+  if (name === 'WebFetch') return short(i.url); if (name === 'WebSearch') return short(i.query);
+  if (name === 'TodoWrite' && Array.isArray(i.todos)) return i.todos.filter(t => t.status === 'completed').length + '/' + i.todos.length + ' done';
+  if (name === 'Skill') return short(i.skill);
+  return short(fp || i.description || i.query || i.command || '');
+}
+function toolDetail(name, i = {}) {
+  if (name === 'Bash') return i.command || '';
+  if (name === 'Edit') return (i.old_string || '').split('\n').map(l => '- ' + l).join('\n') + '\n' + (i.new_string || '').split('\n').map(l => '+ ' + l).join('\n');
+  if (name === 'Write') return String(i.content || '').slice(0, 4000);
+  if (name === 'TodoWrite' && Array.isArray(i.todos)) return i.todos.map(t => (t.status === 'completed' ? '✓ ' : t.status === 'in_progress' ? '● ' : '○ ') + t.content).join('\n');
+  try { return JSON.stringify(i, null, 2).slice(0, 4000); } catch { return ''; }
+}
+function chat(id, from = 0) {
+  const f = fileFor(id); if (!f) return { next: 0, items: [] };
+  const size = fs.statSync(f).size; if (size < from) from = 0;
+  if (size === from) return { next: from, items: [] };
+  const b = chunk(f, from, size - from), end = b.lastIndexOf('\n') + 1, items = [];
+  for (const line of b.slice(0, end).split('\n')) {
+    if (!line.startsWith('{"') || !(line.includes('"type":"user"') || line.includes('"type":"assistant"'))) continue;
+    let l; try { l = JSON.parse(line); } catch { continue; }
+    if (l.isSidechain || l.isMeta || !l.message || (l.type !== 'user' && l.type !== 'assistant')) continue;
+    const c = l.message.content;
+    if (l.type === 'user') {
+      if (typeof c === 'string') {
+        const cmd = c.match(/<command-name>([^<]*)<\/command-name>/); if (cmd) { items.push({ k: 'cmd', text: cmd[1] }); continue; }
+        if (/^<(local-command|bash-|system-reminder|command-)/.test(c.trim())) continue;
+        items.push({ k: 'user', text: c, imgs: [] }); continue;
+      }
+      if (!Array.isArray(c)) continue;
+      let text = '', imgs = [];
+      for (const x of c) {
+        if (!x) continue;
+        if (x.type === 'tool_result') items.push({ k: 'done', id: x.tool_use_id, err: !!x.is_error });
+        else if (x.type === 'text' && !/^\s*<(system-reminder|local-command|command-)/.test(x.text || '') && !/^\[Request interrupted/.test(x.text || '')) text += (text ? '\n' : '') + x.text;
+        else if (x.type === 'image' && x.source && x.source.type === 'base64' && /^image\/(png|jpe?g|gif|webp)$/.test(x.source.media_type)) imgs.push(`data:${x.source.media_type};base64,${x.source.data}`);
+      }
+      if (text.trim() || imgs.length) items.push({ k: 'user', text, imgs });
+      continue;
+    }
+    if (!Array.isArray(c)) continue;
+    for (const x of c) {
+      if (!x) continue;
+      if (x.type === 'text' && x.text && x.text.trim()) items.push({ k: 'bot', text: x.text });
+      else if (x.type === 'tool_use') items.push({ k: 'tool', id: x.id, name: String(x.name || '').replace(/^mcp__[^_]+(?:_[^_]+)*?__/, ''), desc: toolDesc(x.name, x.input), detail: toolDetail(x.name, x.input) });
+    }
+  }
+  return { next: from + Buffer.byteLength(b.slice(0, end)), items };
+}
+
+module.exports = { list, live, usage, rename, togglePin, extras, images, chat, title, HOME };
