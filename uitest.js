@@ -23,7 +23,7 @@ if (!process.versions.electron) {
       if (!cwd || !fs.existsSync(cwd) || !rows.some(r => r.type === 'user')) continue;
       fs.mkdirSync(path.join(C, 'projects', d), { recursive: true }); fs.writeFileSync(path.join(C, 'projects', d, n), fs.readFileSync(f, 'utf8').replaceAll('"entrypoint":"sdk-cli"', '"entrypoint":"cli"')); /* scripted runs count as normal chats here */ picked.push(f); } }
   // fake login shell: no real claude. "mcp" call answers a fixed list, anything else just idles like a terminal session.
-  fs.writeFileSync(path.join(H, 'fakesh'), '#!/bin/sh\ncase "$*" in *mcp*) echo "claude.ai Fake: https://x - Connected";; *) exec sleep 600;; esac\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(H, 'fakesh'), '#!/bin/sh\ncase "$*" in *mcp*) echo "claude.ai Fake: https://x - Connected";; *) [ -f "$HOME/probe" ] && while read l; do echo "GOT:$l SIZE:$(stty size)"; done; exec sleep 600;; esac\n', { mode: 0o755 });
   console.log('sandbox HOME:', H, '| fixtures:', picked.length);
   const env = { ...process.env, HOME: H, SHELL: path.join(H, 'fakesh'), DESK_UITEST: '1', DESK_PTYD_EXIT_WITH_CLIENT: '1' }; delete env.ELECTRON_RUN_AS_NODE; delete env.DESK_SMOKE;
   const r = cp.spawnSync(require('electron'), [__filename], { env, stdio: 'inherit', timeout: 180000 });
@@ -375,6 +375,17 @@ async function run() {
     await R(`${T}.term.write('\x1b[?1049l'); ${T}.fit.fit()`); await sleep(500);
     await R(`${T}.sessionId = '33333333-3333-4333-8333-000000000002'; pollImages()`); await sleep(400); ok((await state()).ims.length === 0, '/clear kept the old images');
     await R(`closeTab(${k})`);
+  });
+  await flow('32 new tab opened in split view: the pty gets the pane size, typing reaches it', async () => {
+    // Raf 2026-11-08: new tabs sometimes opened garbled until a layout switch. The tab's resize to its pane was dropped while the pty was still starting.
+    await R(`document.querySelector('#layouts [data-l="cols2"]').click()`); await sleep(200);
+    fs.writeFileSync(path.join(os.homedir(), 'probe'), ''); await R(`$('new').click()`); await sleep(1500); fs.unlinkSync(path.join(os.homedir(), 'probe'));
+    const k = await R(`active`); await R(`ipc.send('write', active, 'ping\\r')`); await sleep(700);
+    const r = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[active], b = t.term.buffer.active; let s = ''; for (let i = 0; i < b.length; i++) s += b.getLine(i).translateToString(true) + '\\n';
+      return { cols: t.term.cols, rows: t.term.rows, got: (s.match(/GOT:ping SIZE:(\\d+) (\\d+)/) || []).slice(1).map(Number), inPane: panes.includes(active) }; })())`));
+    ok(r.inPane && r.got.length === 2, 'typing did not reach the new tab ' + JSON.stringify(r));
+    ok(r.got[0] === r.rows && r.got[1] === r.cols, `pty size ${r.got[1]}x${r.got[0]} vs xterm ${r.cols}x${r.rows}`);
+    await R(`closeTab(${JSON.stringify(k)})`); await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');

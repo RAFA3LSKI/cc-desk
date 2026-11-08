@@ -7,7 +7,7 @@ let win; const live = new Set(); // keys of the sessions the background helper i
 const toWin = (...a) => { if (win && !win.isDestroyed()) win.webContents.send(...a); };
 const D = ptyd.client(m => {
   if (m.t === 'data') toWin('data', m.key, m.d);
-  if (m.t === 'exit') { live.delete(m.key); toWin('exit', m.key); }
+  if (m.t === 'exit') { live.delete(m.key); sizes.delete(m.key); toWin('exit', m.key); }
 }, () => { for (const k of live) toWin('exit', k); live.clear(); }); // helper gone: tell the tabs instead of leaving them frozen
 // Window name = the .app bundle's name ("CC Desk" by default), so a renamed copy shows its own name.
 const NAME = (app.getPath('exe').match(/([^/]+)\.app\//) || [, 'CC Desk'])[1].replace(/^Electron$/, 'CC Desk');
@@ -105,6 +105,8 @@ ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
   const pid = await D.open({ key, shell: process.env.SHELL || '/bin/zsh', args: ['-ilc', cmd], cols, rows, cwd,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
   live.add(key);
+  // The tab is fitted to its pane while the pty is still starting; that resize was dropped (not live yet), so Claude drew for the old size until a layout switch.
+  const sz = sizes.get(key); if (sz && (sz[0] !== cols || sz[1] !== rows)) D.resize(key, sz[0], sz[1]);
   if (missing) toWin('data', key, `This session's folder no longer exists: ${missing}. Starting in your home folder instead.\r\n`);
   return pid;
 });
@@ -112,5 +114,6 @@ ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
 ipcMain.handle('running', async () => { if (SMOKE) return []; const items = await D.list(); items.forEach(x => live.add(x.key)); return items; });
 ipcMain.on('attach', (e, k, c, r) => D.attach(k, c, r));
 ipcMain.on('write', (e, k, d) => live.has(k) && D.write(k, d));
-ipcMain.on('resize', (e, k, c, r) => live.has(k) && D.resize(k, c, r));
+const sizes = new Map(); // last size each tab asked for, kept even while its pty is starting
+ipcMain.on('resize', (e, k, c, r) => { sizes.set(k, [c, r]); live.has(k) && D.resize(k, c, r); });
 ipcMain.on('kill', (e, k) => live.has(k) && D.kill(k));
