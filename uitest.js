@@ -458,6 +458,16 @@ async function run() {
     ok(r.w2[0] < r.w[0] - 100 && r.w2[1] > r.w[1] + 100, 'top row did not resize ' + JSON.stringify(r));
     ok(Math.abs(r.w2[2] - r.w[2]) < 2 && Math.abs(r.w2[3] - r.w[3]) < 2, 'bottom row moved with the top divider ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
   });
+  await flow('34c one pane changes height on its own: the left half of the 2x2 row divider leaves the right column alone', async () => {
+    await R(`document.querySelector('#layouts [data-l="grid4"]').click()`); await sleep(200);
+    const r = JSON.parse(await P(`const ks = [...panes], h = ks.map(k => box(k).h), segs = [...document.querySelectorAll('.divider.y')].map(e => [e, e.getBoundingClientRect()]).sort((a, b) => a[1].left - b[1].left);
+      const [el, b] = segs[0]; const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === el;
+      drag(el, b.left + b.width / 2, b.top + 2, b.left + b.width / 2, b.top - 120);
+      return JSON.stringify({ segs: segs.length, at, h, h2: ks.map(k => box(k).h), fitted: fitted() });`));
+    ok(r.segs === 2, 'grid4 row divider should come in 2 pieces, got ' + r.segs); ok(r.at, 'left piece is covered');
+    ok(r.h2[0] < r.h[0] - 80 && r.h2[2] > r.h[2] + 80, 'left column did not change height ' + JSON.stringify(r));
+    ok(Math.abs(r.h2[1] - r.h[1]) < 2 && Math.abs(r.h2[3] - r.h[3]) < 2, 'right column moved too ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
+  });
   await flow('35 more than 4 panes: Cmd+D / Shift+Cmd+D split the focused pane, 6 sessions on screen, all fitted, none overlapping', async () => {
     while (await R(`Object.keys(tabs).length`) < 6) { await R(`$('new').click()`); await sleep(300); }
     await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true, bubbles: true }))`); await sleep(100);

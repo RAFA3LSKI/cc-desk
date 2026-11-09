@@ -596,9 +596,10 @@ function applyLayout() {
   const walk = (n, x, y, w, h) => {
     if (n.c) { let at = 0; n.c.forEach((c, i) => { const s = n.r[i];
         if (n.d === 'x') walk(c, x + at * w, y, s * w, h); else walk(c, x, y + at * h, w, s * h); at += s;
-        if (i < n.c.length - 1) { const d = document.createElement('div'); d.className = 'divider ' + n.d;
-          Object.assign(d.style, n.d === 'x' ? { left: pct(x + at * w), top: pct(y), height: pct(h) } : { top: pct(y + at * h), left: pct(x), width: pct(w) });
-          d.onmousedown = e => dragDivider(e, d, n, i, [x, y, w, h]); $('terms').appendChild(d); } }); return; }
+        if (i < n.c.length - 1) { const segs = aligned(n) ? n.c[0].r : [1]; let s0 = 0; // lined-up cells: one divider piece per cell, so each moves on its own
+          segs.forEach((sr, j) => { const d = document.createElement('div'); d.className = 'divider ' + n.d;
+            Object.assign(d.style, n.d === 'x' ? { left: pct(x + at * w), top: pct(y + s0 * h), height: pct(sr * h) } : { top: pct(y + at * h), left: pct(x + s0 * w), width: pct(sr * w) });
+            d.onmousedown = segs.length > 1 ? e => dragPiece(e, d, n, i, j, [x, y, w, h]) : e => dragDivider(e, d, n, i, [x, y, w, h]); $('terms').appendChild(d); s0 += sr; }); } }); return; }
     paneBoxes.push({ n, x, y, w, h }); const k = n.k, head = many ? 24 : 0;
     const place = (el, top, bottom, l, r) => Object.assign(el.style, { inset: 'auto', left: `calc(${pct(x)} + ${l}px)`, top: `calc(${pct(y)} + ${top}px)`, width: `calc(${pct(w)} - ${l + r}px)`, height: `calc(${pct(h)} - ${top + bottom}px)` });
     if (many) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); if (k) hd.dataset.key = k;
@@ -619,6 +620,14 @@ function loadSplit() { // saved tree; the old { layout, panes, ratios } format m
   try { const sv = JSON.parse(localStorage.getItem('split')); if (!sv) return;
     if (sv.v === 2 && validTree(sv.tree)) { tree = sv.tree; layout = sv.layout || null; }
     else if (PRESETS[sv.layout]) { tree = PRESETS[sv.layout](); layout = sv.layout; leaves().forEach((l, i) => l.k = (sv.panes || [])[i] || null); } } catch {}
+}
+// A split whose children are all splits the other way with the same cuts (a grid): its divider is drawn in pieces.
+const aligned = n => n.c.every(c => c.c && c.d !== n.d && c.c.length === n.c[0].c.length && c.r.every((v, j) => Math.abs(v - n.c[0].r[j]) < 1e-6));
+function dragPiece(e, d, n, i, j, [x, y, w, h]) { // regroup the grid the other way (rows <-> columns, same look), then drag only strip j
+  const m = n.c[0].c.length, r = [...n.c[0].r], strips = Array.from({ length: m }, (_, q) => ({ d: n.d, c: n.c.map(c => c.c[q]), r: [...n.r] }));
+  n.d = n.d === 'x' ? 'y' : 'x'; n.c = strips; n.r = r; layout = null; applyLayout();
+  const before = r.slice(0, j).reduce((a, b) => a + b, 0);
+  dragDivider(e, d, strips[j], i, n.d === 'x' ? [x + before * w, y, r[j] * w, h] : [x, y + before * h, w, r[j] * h]);
 }
 function dragDivider(e, d, n, i, [x, y, w, h]) { // moves only the two panes on either side
   e.preventDefault(); d.classList.add('drag'); const box = $('terms').getBoundingClientRect(), X = n.d === 'x';
