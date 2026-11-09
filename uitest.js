@@ -423,6 +423,16 @@ async function run() {
     await R(`(async () => { const t = tabs[${key}]; t.sessionId = '${sid}'; await pollChat(t); })()`);
     const m = JSON.parse(await R(`JSON.stringify([...tabs[${key}].chatEl.querySelectorAll('.cme')].map(e => e.textContent).concat([...tabs[${key}].chatEl.querySelectorAll('.cbody')].map(e => e.textContent.trim())))`));
     ok(m.includes('question from raf') && m.includes('answer from claude'), 'transcript did not render as .cme/.cbody ' + JSON.stringify(m));
+    // background job: "1 still running" line shows while it runs (visible, not just set), hides on its <task-notification>
+    const bgState = `JSON.stringify((() => { const e = tabs[${key}].bgEl, r = e.getBoundingClientRect(); return { on: !e.hidden && r.height > 0 && getComputedStyle(e).display !== 'none', txt: e.textContent }; })())`;
+    fs.appendFileSync(path.join(dir, sid + '.jsonl'), line('assistant', [{ type: 'tool_use', id: 'toolu_bg1', name: 'Bash', input: { command: 'sleep 60', description: 'Wait for clip takes', run_in_background: true } }]) + '\n'
+      + line('user', [{ type: 'tool_result', tool_use_id: 'toolu_bg1', content: 'Command running in background with ID: b1.' }]) + '\n');
+    await R(`(async () => { await pollChat(tabs[${key}]); })()`);
+    const b1 = JSON.parse(await R(bgState)); console.log('bg running ' + JSON.stringify(b1));
+    ok(b1.on && /^1 still running: Shell · Wait for clip takes/.test(b1.txt), 'background job not shown as still running ' + JSON.stringify(b1));
+    fs.appendFileSync(path.join(dir, sid + '.jsonl'), JSON.stringify({ type: 'queue-operation', operation: 'enqueue', content: '<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>toolu_bg1</tool-use-id>\n<status>completed</status>\n</task-notification>' }) + '\n');
+    await R(`(async () => { await pollChat(tabs[${key}]); })()`);
+    const b2 = JSON.parse(await R(bgState)); ok(!b2.on, 'still-running line did not hide after the job finished ' + JSON.stringify(b2));
     await R(`closeTab(${key})`);
   });
   // Pane tree (2026-11-08): drag tabs between panes, resize each pane on its own, no pane cap, split any pane.
