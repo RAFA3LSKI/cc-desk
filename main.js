@@ -98,13 +98,16 @@ ipcMain.handle('pin', (e, id) => S.togglePin(id));
 ipcMain.on('focus', () => { win.show(); win.focus(); });
 
 // Runs the real installed `claude` through a login shell, so PATH, hooks and settings are exactly the terminal's.
+// The app may be launched from inside a Claude Code shell (install.sh --update, a fix session): its CLAUDE* vars
+// (CHILD_SESSION, SESSION_ID...) must not reach tabs, or claude saves no transcript and the chat view stays empty (2026-11-09).
+const cleanEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^CLAUDE/.test(k)));
 ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
   if (resumeId && !/^[0-9a-f-]{36}$/.test(resumeId)) throw new Error('bad session id');
   // --remote-control: every tab can be picked up from the Claude phone app (Raf 2026-11-06).
   const cmd = noTok() + 'exec command claude --remote-control' + (resumeId ? ' --resume ' + resumeId : '');
   const missing = !require('fs').existsSync(cwd) && cwd; if (missing) cwd = S.HOME;
   const pid = await D.open({ key, shell: process.env.SHELL || '/bin/zsh', args: ['-ilc', cmd], cols, rows, cwd,
-    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
+    env: { ...cleanEnv(), TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
   live.add(key);
   // The tab is fitted to its pane while the pty is still starting; that resize was dropped (not live yet), so Claude drew for the old size until a layout switch.
   const sz = sizes.get(key); if (sz && (sz[0] !== cols || sz[1] !== rows)) D.resize(key, sz[0], sz[1]);
