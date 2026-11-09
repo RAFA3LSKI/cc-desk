@@ -13,6 +13,8 @@ app.whenReady().then(() => {
     this.webContents.once('did-finish-load', async () => {
       const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'chattest-'));
       await js(`openTab(null, ${JSON.stringify(dir)}, 'chattest')`); await wait(12000);
+      // fresh temp dir = folder-trust prompt (CC Desk strips CLAUDE_CODE_CHILD_SESSION, which used to skip it): pick "Yes, I trust"
+      if (/trust this folder/.test(await js(`(() => { const b = Object.values(tabs)[0].term.buffer.active; let s=''; for (let i=0;i<b.length;i++) s += b.getLine(i).translateToString(true); return s; })()`))) { await js(`ipc.send('write', Object.keys(tabs)[0], '\\x1b[B'); setTimeout(() => ipc.send('write', Object.keys(tabs)[0], '\\r'), 400)`); await wait(8000); }
       const pre = JSON.parse(await js(`(() => { const t = Object.values(tabs)[0]; const b = t.term.buffer.active; let s=''; for (let i=0;i<b.length;i++) s += b.getLine(i).translateToString(true).trimEnd()+'\\n'; return JSON.stringify({ pid: t.pid, livePids: Object.keys(liveState.byPid), sid: t.sessionId, text: s.trim().slice(-1500) }); })()`)); console.log('PRETEXT'); console.log(pre.text); console.log('MENU', await js('JSON.stringify(Object.values(tabs)[0].menu)+" hidden="+Object.values(tabs)[0].ask.hidden'));
       const st = () => js(`(() => { const t = Object.values(tabs)[0]; return { mode: t.mode, sid: t.sessionId, me: [...t.col.querySelectorAll('.cme')].map(x => x.textContent),
         bot: [...t.col.querySelectorAll('.cbody')].map(x => x.innerText.slice(0, 200)), chips: [...t.col.querySelectorAll('.cstep')].map(x => x.className + ' ' + x.innerText),
