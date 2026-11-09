@@ -101,7 +101,7 @@ ipcMain.on('focus', () => { win.show(); win.focus(); });
 ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
   if (resumeId && !/^[0-9a-f-]{36}$/.test(resumeId)) throw new Error('bad session id');
   // --remote-control: every tab can be picked up from the Claude phone app (Raf 2026-11-06).
-  const cmd = noTok() + 'exec claude --remote-control' + (resumeId ? ' --resume ' + resumeId : '');
+  const cmd = noTok() + 'exec command claude --remote-control' + (resumeId ? ' --resume ' + resumeId : '');
   const missing = !require('fs').existsSync(cwd) && cwd; if (missing) cwd = S.HOME;
   const pid = await D.open({ key, shell: process.env.SHELL || '/bin/zsh', args: ['-ilc', cmd], cols, rows, cwd,
     env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' }, meta: { cwd, resumeId, title } });
