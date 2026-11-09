@@ -149,6 +149,7 @@ function images(id, from = 0) {
 
 // The conversation as chat items, read from byte `from` on (same incremental rule as images). Main thread only (no subagents).
 // Items: {k:'user', text, imgs} {k:'bot', text} {k:'tool', id, name, desc, detail} {k:'done', id, err} {k:'cmd', text}
+// Background jobs: {k:'bg', id, name?, desc?} when one starts (or a command times out into the background), {k:'bgdone', id} on its <task-notification>.
 const short = (s, n = 90) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 function toolDesc(name, i = {}) {
   const fp = i.file_path || i.notebook_path || i.path;
@@ -174,6 +175,8 @@ function chat(id, from = 0) {
   if (size === from) return { next: from, items: [] };
   const b = chunk(f, from, size - from), end = b.lastIndexOf('\n') + 1, items = [];
   for (const line of b.slice(0, end).split('\n')) {
+    // A finished background job: its <task-notification> can sit in a user line, a queued-message line or an attachment, so read it from any line.
+    if (line.includes('<task-notification>')) for (const m of line.matchAll(/<task-notification>(?:\\n|\s)*<task-id>[^<]*<\/task-id>(?:\\n|\s)*<tool-use-id>([^<]+)<\/tool-use-id>/g)) items.push({ k: 'bgdone', id: m[1] });
     if (!line.startsWith('{"') || !(line.includes('"type":"user"') || line.includes('"type":"assistant"'))) continue;
     let l; try { l = JSON.parse(line); } catch { continue; }
     if (l.isSidechain || l.isMeta || !l.message || (l.type !== 'user' && l.type !== 'assistant')) continue;
@@ -188,7 +191,8 @@ function chat(id, from = 0) {
       let text = '', imgs = [];
       for (const x of c) {
         if (!x) continue;
-        if (x.type === 'tool_result') items.push({ k: 'done', id: x.tool_use_id, err: !!x.is_error });
+        if (x.type === 'tool_result') { items.push({ k: 'done', id: x.tool_use_id, err: !!x.is_error });
+          const rc = typeof x.content === 'string' ? x.content : JSON.stringify(x.content || ''); if (/^(\[\{"type":"text","text":")?\s*(Async agent launched|Command running in background)|(^|\n)Command did not complete within (its )?\d+s timeout and was moved to the background/.test(rc)) items.push({ k: 'bg', id: x.tool_use_id }); } // a command that timed out into the background, or a background agent
         else if (x.type === 'text' && !/^\s*<(system-reminder|local-command|command-|task-notification)/.test(x.text || '') && !/^\[Request interrupted/.test(x.text || '')) text += (text ? '\n' : '') + x.text;
         else if (x.type === 'image' && x.source && x.source.type === 'base64' && /^image\/(png|jpe?g|gif|webp)$/.test(x.source.media_type)) imgs.push(`data:${x.source.media_type};base64,${x.source.data}`);
       }
@@ -199,7 +203,9 @@ function chat(id, from = 0) {
     for (const x of c) {
       if (!x) continue;
       if (x.type === 'text' && x.text && x.text.trim()) items.push({ k: 'bot', text: x.text });
-      else if (x.type === 'tool_use') items.push({ k: 'tool', id: x.id, name: String(x.name || '').replace(/^mcp__[^_]+(?:_[^_]+)*?__/, ''), desc: toolDesc(x.name, x.input), detail: toolDetail(x.name, x.input) });
+      else if (x.type === 'tool_use' && x.input && (x.input.run_in_background === true || /^(Monitor|Workflow)$/.test(x.name)))
+        items.push({ k: 'bg', id: x.id, name: /^(Agent|Task)$/.test(x.name) ? 'Agent' : x.name === 'Bash' ? 'Shell' : x.name, desc: toolDesc(x.name, x.input) });
+      if (x.type === 'tool_use') items.push({ k: 'tool', id: x.id, name: String(x.name || '').replace(/^mcp__[^_]+(?:_[^_]+)*?__/, ''), desc: toolDesc(x.name, x.input), detail: toolDetail(x.name, x.input) });
     }
   }
   return { next: from + Buffer.byteLength(b.slice(0, end)), items };

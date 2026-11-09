@@ -141,6 +141,7 @@
   .ccmd { align-self:center; color:var(--dim); font-size:12px; border:1px dashed var(--line); border-radius:9px; padding:1px 10px; }
   .cfoot { padding:0 14px 12px; display:flex; flex-direction:column; gap:8px; max-width:752px; width:100%; margin:0 auto; }
   .clive { display:flex; align-items:center; gap:8px; color:var(--accent); font-size:12.5px; } .clive .ltxt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cbg { color:var(--busy); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .cbg::before { content:'●'; margin-right:7px; animation:pulse 1.2s ease-in-out infinite; display:inline-block; }
   .clive i { width:8px; height:8px; border-radius:50%; background:var(--accent); animation:pulse 1.2s ease-in-out infinite; flex:none; }
   .cask { border:1px solid #5a4630; background:#241e17; border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
   .cask .q { white-space:pre-wrap; font-size:13px; } .cask .ctype { flex:1; min-width:180px; background:var(--raise); border:1px solid #5a4630; color:var(--text); border-radius:8px; padding:5px 10px; font:inherit; outline:none; } .cask .acts { display:flex; gap:6px; flex-wrap:wrap; }
@@ -429,13 +430,13 @@ function md(src) {
 function initChat(t, key) {
   const c = document.createElement('div'); c.className = 'chatv';
   c.innerHTML = `<div class="cmsgs"><div class="ccol"><div class="cempty">Type below to talk to Claude. ⌘T shows the terminal.</div></div></div>
-    <div class="cfoot"><div class="clive" hidden><i></i><span class="ltxt"></span><button class="cbtn" data-stop>Stop</button></div>
+    <div class="cfoot"><div class="cbg" hidden></div><div class="clive" hidden><i></i><span class="ltxt"></span><button class="cbtn" data-stop>Stop</button></div>
     <div class="cask" hidden></div>
     <div class="ccomp"><textarea rows="1" placeholder="Reply to Claude…"></textarea><span class="cpill mode" hidden></span><span class="cpill" data-term title="Show the terminal (⌘T)">Terminal</span><button class="csend" title="Send (Enter)">↑</button></div>
     <div class="ctok"></div></div>`;
   t.el.appendChild(c);
   const back = document.createElement('button'); back.className = 'tochat'; back.textContent = 'Back to chat'; back.title = 'Show this session as chat (⌘T)'; back.onclick = () => setView(t, 'chat'); t.el.appendChild(back);
-  Object.assign(t, { backBtn: back, chatEl: c, msgs: c.querySelector('.cmsgs'), col: c.querySelector('.ccol'), ta: c.querySelector('textarea'), live: c.querySelector('.clive'),
+  Object.assign(t, { backBtn: back, chatEl: c, msgs: c.querySelector('.cmsgs'), col: c.querySelector('.ccol'), ta: c.querySelector('textarea'), live: c.querySelector('.clive'), bgEl: c.querySelector('.cbg'), bg: {}, tools: {},
     ask: c.querySelector('.cask'), modeEl: c.querySelector('.cpill.mode'), ctok: c.querySelector('.ctok'), chips: {}, chatOff: 0, chatSid: null, group: null });
   const termFocus = t.term.focus.bind(t.term); t.termFocus = termFocus;
   t.term.focus = () => t.mode === 'chat' ? t.ta.focus() : termFocus(); // every existing "focus the session" call lands in the right place
@@ -532,11 +533,14 @@ function chatAdd(t, it) {
   if (it.k === 'user') { t.group = null; t.col.querySelector('.cme.pend')?.remove(); const d = document.createElement('div'); d.className = 'cme'; d.textContent = it.text; for (const s of it.imgs) { const im = document.createElement('img'); im.src = s; d.appendChild(im); } col.appendChild(d); }
   else if (it.k === 'cmd' && it.text !== '/clear') { t.group = null; const d = document.createElement('div'); d.className = 'ccmd'; d.textContent = it.text; col.appendChild(d); }
   else if (it.k === 'bot') { const d = document.createElement('div'); d.innerHTML = md(it.text); botBody().appendChild(d); }
+  else if (it.k === 'tool') t.tools[it.id] = it; // remembered so a command that times out into the background still has its name
+  else if (it.k === 'bg') { const x = it.name ? it : t.tools[it.id]; if (x) t.bg[it.id] = x.name === 'Bash' ? { ...x, name: 'Shell' } : x; }
+  else if (it.k === 'bgdone') delete t.bg[it.id];
   // Tool steps (Bash, Agent… chips) are not shown: Raf finds them noise. Full detail stays in the terminal (⌘T).
 }
 async function pollChat(t) {
   if (!t.chatEl || t.chatBusy || !t.sessionId) return;
-  if (t.chatSid !== t.sessionId) { t.chatSid = t.sessionId; t.chatOff = 0; t.chips = {}; t.group = null; t.col.innerHTML = ''; } // /clear: new chat
+  if (t.chatSid !== t.sessionId) { t.chatSid = t.sessionId; t.chatOff = 0; t.chips = {}; t.bg = {}; t.tools = {}; t.group = null; t.col.innerHTML = ''; } // /clear: new chat
   t.chatBusy = true;
   try {
     const sid = t.sessionId, r = await ipc.invoke('chat', sid, t.chatOff);
@@ -545,7 +549,13 @@ async function pollChat(t) {
     const atEnd = t.msgs.scrollHeight - t.msgs.scrollTop - t.msgs.clientHeight < 80;
     // ponytail: a resumed long session draws only its last 400 items; the full history is in the terminal (⌘T)
     const items = !t.col.children.length && r.items.length > 400 ? r.items.slice(-400) : r.items;
-    for (const it of items) chatAdd(t, it);
+    const job = it => /^(tool|bg|bgdone)$/.test(it.k);
+    for (const it of r.items) if (job(it)) chatAdd(t, it); // job state needs every item, even when only the last 400 are drawn
+    for (const it of items) if (!job(it)) chatAdd(t, it);
+    // Still running in the background (Raf 2026-11-09): what the terminal footer shows, so he can check instead of asking.
+    // ponytail: a job lost without a notification (session killed mid-job) stays listed until /clear or the tab reopens
+    const bg = Object.values(t.bg); t.bgEl.hidden = !bg.length;
+    t.bgEl.textContent = bg.length ? `${bg.length} still running: ` + bg.map(b => b.name + ' · ' + b.desc).join('  ·  ') : ''; t.bgEl.title = bg.map(b => b.name + ': ' + b.desc).join('\n');
     if (atEnd) t.msgs.scrollTop = t.msgs.scrollHeight;
   } catch {} finally { t.chatBusy = false; }
 }
