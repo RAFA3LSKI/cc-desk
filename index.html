@@ -67,7 +67,8 @@
   #acctRow { margin:0 12px 12px; display:flex; gap:6px; }
   #acct { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; text-align:left; }
   #optBtn { flex:none; width:38px; padding:0; font-size:16px; display:flex; align-items:center; justify-content:center; }
-  #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #acctPlan { color:var(--dim); font-size:11px; }
+  #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #acctMail, #menu .mail { filter:blur(5px); transition:filter .15s; } #acct:hover #acctMail, #menu .mail:hover { filter:none; } /* privacy: hide email from onlookers */ #acctPlan { color:var(--dim); font-size:11px; }
   #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#232429; border:1px solid var(--line);
           border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:9; }
   #menu .mail { color:var(--dim); padding:6px 10px 8px; overflow:hidden; text-overflow:ellipsis; }
@@ -472,6 +473,7 @@ function initChat(t, key) {
   setView(t, deskPrefs.view === 'term' ? 'term' : 'chat');
 }
 function setView(t, m) { t.mode = m; t.chatEl.hidden = m !== 'chat'; t.backBtn.hidden = m === 'chat'; if (m === 'chat') { t.msgs.scrollTop = t.msgs.scrollHeight; t.ta.focus(); } else t.termFocus(); }
+const CHIP_TOOLS = /^(Bash|Task|Agent)$/;
 const TYPE_OPT = /^(type something|other)\b/i;
 // Move to the free-text option, type the answer on it, Enter. Spaced out so Claude treats them as separate keystrokes.
 function typeAnswer(t, key) {
@@ -532,7 +534,15 @@ function chatAdd(t, it) {
   if (it.k === 'user') { t.group = null; t.col.querySelector('.cme.pend')?.remove(); const d = document.createElement('div'); d.className = 'cme'; d.textContent = it.text; for (const s of it.imgs) { const im = document.createElement('img'); im.src = s; d.appendChild(im); } col.appendChild(d); }
   else if (it.k === 'cmd' && it.text !== '/clear') { t.group = null; const d = document.createElement('div'); d.className = 'ccmd'; d.textContent = it.text; col.appendChild(d); }
   else if (it.k === 'bot') { const d = document.createElement('div'); d.innerHTML = md(it.text); botBody().appendChild(d); }
-  // Tool steps (Bash, Agent… chips) are not shown: Raf finds them noise. Full detail stays in the terminal (⌘T).
+  // Only shell commands and agents show as chips (Raf 2026-11-09: wants to see them); other tool steps are noise. Click = full command / prompt.
+  else if (it.k === 'tool' && CHIP_TOOLS.test(it.name)) {
+    const body = botBody(); let pre = body.lastChild;
+    if (!pre || !pre.classList.contains('cdetail')) { const row = document.createElement('div'); row.className = 'csteps'; pre = document.createElement('pre'); pre.className = 'cdetail'; pre.hidden = true; body.append(row, pre); }
+    const c = document.createElement('div'); c.className = 'cstep'; c.dataset.html = esc(it.detail || it.desc);
+    c.innerHTML = `<i></i><b>${it.name === 'Bash' ? 'Shell' : 'Agent'}</b><span class="d">${esc(it.desc)}</span>`;
+    pre.previousSibling.appendChild(c); t.chips[it.id] = c;
+  }
+  else if (it.k === 'done' && t.chips[it.id]) t.chips[it.id].classList.add(it.err ? 'err' : 'ok');
 }
 async function pollChat(t) {
   if (!t.chatEl || t.chatBusy || !t.sessionId) return;
