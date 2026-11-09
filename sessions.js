@@ -163,7 +163,6 @@ function toolDesc(name, i = {}) {
 }
 function toolDetail(name, i = {}) {
   if (name === 'Bash') return i.command || '';
-  if (name === 'Task' || name === 'Agent') return (i.subagent_type ? '[' + i.subagent_type + '] ' : '') + (i.prompt || '');
   if (name === 'Edit') return (i.old_string || '').split('\n').map(l => '- ' + l).join('\n') + '\n' + (i.new_string || '').split('\n').map(l => '+ ' + l).join('\n');
   if (name === 'Write') return String(i.content || '').slice(0, 4000);
   if (name === 'TodoWrite' && Array.isArray(i.todos)) return i.todos.map(t => (t.status === 'completed' ? '✓ ' : t.status === 'in_progress' ? '● ' : '○ ') + t.content).join('\n');
