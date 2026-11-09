@@ -58,6 +58,7 @@
   .paneEmpty { position:absolute; display:flex; align-items:center; justify-content:center; color:var(--dim); font-size:12px; }
   .divider { position:absolute; z-index:7; background:var(--line); } .divider:hover, .divider.drag { background:var(--accent); }
   .divider.x { width:4px; margin-left:-2px; cursor:col-resize; } .divider.y { height:4px; margin-top:-2px; cursor:row-resize; }
+  #desks { display:flex; gap:2px; margin-left:auto; } #desks button { padding:2px 8px; border:0; border-radius:4px; font-size:11px; color:var(--dim); } #desks button.on { background:#2a2c32; color:var(--text); } #desks + #layouts { margin-left:12px; }
   #layouts { display:flex; gap:2px; margin-left:auto; } #layouts button { padding:3px 5px; border:0; line-height:0; color:var(--dim); } #layouts button.on { background:#2a2c32; color:var(--text); } #layouts button#addPane { line-height:1; font-size:14px; } #nPanes { width:34px; margin-left:2px; padding:1px 3px; background:transparent; border:1px solid var(--line); border-radius:4px; color:var(--text); font:inherit; font-size:11px; text-align:center; }
   #empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:6px; }
   #tip { height:26px; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
@@ -170,7 +171,7 @@
   <div id="acctRow"><button id="acct"><span id="acctMail">Account</span><span id="acctPlan"></span></button><button id="optBtn" title="Options" aria-label="Options">⚙︎</button></div>
 </div>
 <div id="main">
-  <div id="bar"><button id="sideBtn" title="Hide or show the sidebar (⌘B)" aria-label="Toggle sidebar"><svg width="16" height="13" viewBox="0 0 16 13" fill="none" stroke="currentColor" aria-hidden="true"><rect x=".5" y=".5" width="15" height="12" rx="1.5"/><path d="M5.5 1v11"/></svg></button><span id="title">CC Desk</span><span id="use"></span><div id="layouts"><button data-l="one" title="One session" aria-label="One session"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="13" rx="1"/></svg></button><button data-l="cols2" title="Side by side" aria-label="Side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="13" rx="1"/><rect x="9.5" y="0" width="8.5" height="13" rx="1"/></svg></button><button data-l="rows2" title="Top and bottom" aria-label="Top and bottom"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="cols3" title="Three side by side" aria-label="Three side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="5.3" height="13" rx="1"/><rect x="6.3" y="0" width="5.4" height="13" rx="1"/><rect x="12.7" y="0" width="5.3" height="13" rx="1"/></svg></button><button data-l="top1" title="One on top, two below" aria-label="One on top, two below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="bottom1" title="Two on top, one below" aria-label="Two on top, one below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="grid4" title="Four, two by two" aria-label="Four, two by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="grid6" title="Six, three by two" aria-label="Six, three by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0.0" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="6.3" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="12.7" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="0.0" y="7.0" width="5.3" height="6.0" rx="1"/><rect x="6.3" y="7.0" width="5.3" height="6.0" rx="1"/><rect x="12.7" y="7.0" width="5.3" height="6.0" rx="1"/></svg></button><button data-l="grid8" title="Eight, four by two" aria-label="Eight, four by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0.0" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="4.8" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="9.5" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="14.2" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="0.0" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="4.8" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="9.5" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="14.2" y="7.0" width="3.8" height="6.0" rx="1"/></svg></button><button id="addPane" title="Add a pane (⌘D splits the current one)" aria-label="Add a pane">+</button><input id="nPanes" type="number" min="1" max="16" title="Panes: type a number to lay out that many evenly" aria-label="Number of panes"></div>
+  <div id="bar"><button id="sideBtn" title="Hide or show the sidebar (⌘B)" aria-label="Toggle sidebar"><svg width="16" height="13" viewBox="0 0 16 13" fill="none" stroke="currentColor" aria-hidden="true"><rect x=".5" y=".5" width="15" height="12" rx="1.5"/><path d="M5.5 1v11"/></svg></button><span id="title">CC Desk</span><span id="use"></span><div id="desks"><button data-desk="0" title="Desk 1">Desk 1</button><button data-desk="1" title="Desk 2">Desk 2</button></div><div id="layouts"><button data-l="one" title="One session" aria-label="One session"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="13" rx="1"/></svg></button><button data-l="cols2" title="Side by side" aria-label="Side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="13" rx="1"/><rect x="9.5" y="0" width="8.5" height="13" rx="1"/></svg></button><button data-l="rows2" title="Top and bottom" aria-label="Top and bottom"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="cols3" title="Three side by side" aria-label="Three side by side"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="5.3" height="13" rx="1"/><rect x="6.3" y="0" width="5.4" height="13" rx="1"/><rect x="12.7" y="0" width="5.3" height="13" rx="1"/></svg></button><button data-l="top1" title="One on top, two below" aria-label="One on top, two below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="18" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="bottom1" title="Two on top, one below" aria-label="Two on top, one below"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="18" height="6" rx="1"/></svg></button><button data-l="grid4" title="Four, two by two" aria-label="Four, two by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0" y="0" width="8.5" height="6" rx="1"/><rect x="9.5" y="0" width="8.5" height="6" rx="1"/><rect x="0" y="7" width="8.5" height="6" rx="1"/><rect x="9.5" y="7" width="8.5" height="6" rx="1"/></svg></button><button data-l="grid6" title="Six, three by two" aria-label="Six, three by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0.0" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="6.3" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="12.7" y="0.0" width="5.3" height="6.0" rx="1"/><rect x="0.0" y="7.0" width="5.3" height="6.0" rx="1"/><rect x="6.3" y="7.0" width="5.3" height="6.0" rx="1"/><rect x="12.7" y="7.0" width="5.3" height="6.0" rx="1"/></svg></button><button data-l="grid8" title="Eight, four by two" aria-label="Eight, four by two"><svg width="18" height="13" viewBox="0 0 18 13" fill="currentColor" aria-hidden="true"><rect x="0.0" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="4.8" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="9.5" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="14.2" y="0.0" width="3.8" height="6.0" rx="1"/><rect x="0.0" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="4.8" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="9.5" y="7.0" width="3.8" height="6.0" rx="1"/><rect x="14.2" y="7.0" width="3.8" height="6.0" rx="1"/></svg></button><button id="addPane" title="Add a pane (⌘D splits the current one)" aria-label="Add a pane">+</button><input id="nPanes" type="number" min="1" max="16" title="Panes: type a number to lay out that many evenly" aria-label="Number of panes"></div>
     <button id="rewind" title="Go back to an earlier point in this session (/rewind)" hidden>⟲ Rewind</button></div>
   <div id="terms"><div id="dropZone" hidden></div><div id="lb" hidden><img></div><div id="empty"><div style="font-size:22px">✳</div><div>Pick a session on the left, or start a new one.</div></div></div>
   <div id="tip"></div>
@@ -568,7 +569,7 @@ async function restoreTabs() {
   await refresh();
   for (const x of items) { if (tabs[x.key]) continue; const m = x.meta || {}, t = makeTab(x.key, m.resumeId || null, m.cwd, (sessions.find(s => s.id === m.resumeId) || {}).title || m.title); t.pid = x.pid; }
   loadSplit();
-  show(leaves().map(l => l.k).find(k => tabs[k]) || Object.keys(tabs)[0]); await refreshLive();
+  show(leaves().map(l => l.k).find(k => tabs[k]) || Object.keys(tabs).find(here)); await refreshLive();
   for (const x of items) { const t = tabs[x.key]; if (t) { t.fit.fit(); ipc.send('attach', x.key, t.term.cols, t.term.rows); } }
 }
 
@@ -576,6 +577,10 @@ async function restoreTabs() {
 // Any pane splits again (no cap), each divider only moves the two panes beside it, tabs drag between panes (head or sidebar row: middle = swap, edge = new pane there).
 // `panes` = tab keys on screen in order; `active` = the pane typing and sidebar clicks go to; `layout` = the preset button it came from (null once changed by hand).
 let tree = { k: null }, layout = 'one', panes = [], paneBoxes = [];
+// Desks (Raf 2026-11-09): 2 independent pane trees, like Mac desktops. On screen = tree/layout; the other desk waits in `other`. Sessions are untouched (they live in ptyd), only what's shown changes.
+let desk = 0, other = { tree: { k: null }, layout: 'one' };
+const otherKeys = () => new Set(leaves(other.tree).map(l => l.k).filter(Boolean)), here = k => !otherKeys().has(k);
+function switchDesk(i) { if (i === desk) return; const cur = { tree, layout }; ({ tree, layout } = other); other = cur; desk = i; }
 const leaf = (k = null) => ({ k }), split = (d, ...c) => ({ d, c, r: c.map(() => 1 / c.length) });
 const PRESETS = { one: () => leaf(), cols2: () => split('x', leaf(), leaf()), rows2: () => split('y', leaf(), leaf()), cols3: () => split('x', leaf(), leaf(), leaf()),
   top1: () => split('y', leaf(), split('x', leaf(), leaf())), bottom1: () => split('y', split('x', leaf(), leaf()), leaf()), grid4: () => split('y', split('x', leaf(), leaf()), split('x', leaf(), leaf())),
@@ -597,7 +602,8 @@ function splitLeaf(n, d, after = true, k = null) { // the new pane takes half of
 const pct = n => (n * 100).toFixed(3) + '%';
 function applyLayout() {
   const ls = leaves(); for (const l of ls) if (l.k && !tabs[l.k]) l.k = null; // closed tabs leave their pane free
-  const shown = new Set(ls.map(l => l.k).filter(Boolean)); // free panes take open sessions that aren't on screen
+  const onHere = new Set(ls.map(l => l.k)); for (const l of leaves(other.tree)) if (l.k && (!tabs[l.k] || onHere.has(l.k))) l.k = null; // a session lives on one desk only
+  const shown = new Set([...ls.map(l => l.k).filter(Boolean), ...otherKeys()]); // free panes take open sessions that aren't on either desk
   for (const l of ls) if (!l.k) { const k = Object.keys(tabs).find(k => !shown.has(k)); if (k) { l.k = k; shown.add(k); } }
   panes = ls.map(l => l.k).filter(Boolean); paneBoxes = [];
   const many = ls.length > 1;
@@ -624,12 +630,16 @@ function applyLayout() {
   walk(tree, 0, 0, 1, 1);
   document.querySelectorAll('#layouts [data-l]').forEach(b => b.classList.toggle('on', b.dataset.l === layout));
   if (document.activeElement !== $('nPanes')) $('nPanes').value = ls.length;
-  try { localStorage.setItem('split', JSON.stringify({ v: 2, tree, layout })); } catch {}
+  document.querySelectorAll('#desks [data-desk]').forEach(b => b.classList.toggle('on', +b.dataset.desk === desk));
+  const d1 = desk ? other : { tree, layout }, d2 = desk ? { tree, layout } : other;
+  try { localStorage.setItem('split', JSON.stringify({ v: 2, ...d1 })); localStorage.setItem('desk2', JSON.stringify(d2)); localStorage.setItem('desk', String(desk)); } catch {}
 }
 function loadSplit() { // saved tree; the old { layout, panes, ratios } format maps onto its preset
   try { const sv = JSON.parse(localStorage.getItem('split')); if (!sv) return;
     if (sv.v === 2 && validTree(sv.tree)) { tree = sv.tree; layout = sv.layout || null; }
     else if (PRESETS[sv.layout]) { tree = PRESETS[sv.layout](); layout = sv.layout; leaves().forEach((l, i) => l.k = (sv.panes || [])[i] || null); } } catch {}
+  try { const d2 = JSON.parse(localStorage.getItem('desk2')); if (d2 && validTree(d2.tree)) other = { tree: d2.tree, layout: d2.layout || null };
+    if (localStorage.getItem('desk') === '1') switchDesk(1); } catch {}
 }
 // A split whose children are all splits the other way with the same cuts (a grid): its divider is drawn in pieces.
 const aligned = n => n.c.every(c => c.c && c.d !== n.d && c.c.length === n.c[0].c.length); // same cell count; cuts may differ (a row was resized)
@@ -701,6 +711,7 @@ const gridTree = n => { const c = Math.ceil(Math.sqrt(n)), rows = []; for (let i
 // Extra open sessions stay running as tabs (not on screen), same as presets.
 const setPanes = n => { n = Math.max(1, Math.min(16, Math.round(n) || 1)); setLayout(null, () => gridTree(n)); };
 function addPane() { const b = $('terms').getBoundingClientRect(), p = paneBoxes.reduce((a, q) => q.w * q.h > a.w * a.h ? q : a); splitLeaf(p.n, p.w * b.width >= p.h * b.height ? 'x' : 'y'); applyLayout(); } // largest pane, cut across its long side
+document.querySelectorAll('#desks [data-desk]').forEach(b => b.onclick = () => { switchDesk(+b.dataset.desk); show(active && here(active) ? active : leaves().map(l => l.k).find(k => tabs[k]) || null); });
 $('addPane').onclick = addPane; $('nPanes').onchange = e => setPanes(+e.target.value);
 $('nPanes').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
 function splitActive(d) { const n = leaves().find(l => l.k === active) || leaves()[0]; splitLeaf(n, d); applyLayout(); if (active && tabs[active]) tabs[active].term.focus(); }
@@ -715,6 +726,7 @@ try { if (localStorage.getItem('side') === '0') document.body.classList.add('nos
 $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (b) setLayout(b.dataset.l); });
 
 function show(key) {
+  if (key && !here(key)) switchDesk(1 - desk); // a session on the other desk: go to that desk
   // A session not on screen replaces the focused pane, or fills the first free one.
   if (key && !leaves().some(l => l.k === key)) { const ls = leaves(); (ls.find(l => !l.k || !tabs[l.k]) || ls.find(l => l.k === active) || ls[0]).k = key; }
   active = key;
@@ -730,7 +742,7 @@ function show(key) {
 function closeTab(key) {
   const t = tabs[key]; if (!t) return;
   ipc.send('kill', key); t.term.dispose(); t.el.remove(); delete tabs[key]; applyLayout();
-  show(tabs[active] ? active : panes[0] || Object.keys(tabs)[0] || null); refresh();
+  show(tabs[active] ? active : panes[0] || Object.keys(tabs).find(here) || null); refresh();
 }
 
 async function loadUsage(t) {
