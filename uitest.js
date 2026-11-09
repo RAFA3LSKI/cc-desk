@@ -477,6 +477,10 @@ async function run() {
     ok(await R(`JSON.stringify(tree)`) === saved && await R(`leaves().length`) === 3, 'tree not restored from storage');
     await R(`localStorage.setItem('split', JSON.stringify({ layout: 'grid4', panes: [], ratios: { a: .5, b: .5 } })); loadSplit(); applyLayout()`); await sleep(100);
     ok(await R(`leaves().length === 4 && layout === 'grid4'`), 'old saved layout format not mapped onto the tree');
+    await R(`$('nPanes').value = 5; $('nPanes').dispatchEvent(new Event('change'))`); await sleep(200);
+    ok(await R(`leaves().length === 5 && $('nPanes').value === '5' && gridTree(5).c.length === 2 && gridTree(5).c[1].c.length === 2`), 'number box should lay out 5 evenly (3+2) and show 5');
+    await R(`$('addPane').click()`); await sleep(100);
+    ok(await R(`leaves().length === 6 && $('nPanes').value === '6'`), '+ button should add one pane');
     await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });

@@ -181,7 +181,7 @@ function chat(id, from = 0) {
     if (l.type === 'user') {
       if (typeof c === 'string') {
         const cmd = c.match(/<command-name>([^<]*)<\/command-name>/); if (cmd) { items.push({ k: 'cmd', text: cmd[1] }); continue; }
-        if (/^<(local-command|bash-|system-reminder|command-)/.test(c.trim())) continue;
+        if (/^<(local-command|bash-|system-reminder|command-|task-notification)/.test(c.trim())) continue;
         items.push({ k: 'user', text: c, imgs: [] }); continue;
       }
       if (!Array.isArray(c)) continue;
@@ -189,7 +189,7 @@ function chat(id, from = 0) {
       for (const x of c) {
         if (!x) continue;
         if (x.type === 'tool_result') items.push({ k: 'done', id: x.tool_use_id, err: !!x.is_error });
-        else if (x.type === 'text' && !/^\s*<(system-reminder|local-command|command-)/.test(x.text || '') && !/^\[Request interrupted/.test(x.text || '')) text += (text ? '\n' : '') + x.text;
+        else if (x.type === 'text' && !/^\s*<(system-reminder|local-command|command-|task-notification)/.test(x.text || '') && !/^\[Request interrupted/.test(x.text || '')) text += (text ? '\n' : '') + x.text;
         else if (x.type === 'image' && x.source && x.source.type === 'base64' && /^image\/(png|jpe?g|gif|webp)$/.test(x.source.media_type)) imgs.push(`data:${x.source.media_type};base64,${x.source.data}`);
       }
       if (text.trim() || imgs.length) items.push({ k: 'user', text, imgs });
