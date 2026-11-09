@@ -120,6 +120,7 @@
   .ccol { max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
   .cempty { color:var(--dim); text-align:center; margin-top:18vh; }
   .cme { align-self:flex-end; background:var(--raise2); padding:8px 14px; border-radius:16px 16px 4px 16px; max-width:80%; white-space:pre-wrap; word-break:break-word; }
+  .cnow { display:none; margin-left:10px; font-size:12px; padding:2px 10px; } .chatv.busy .cme.pend .cnow { display:inline-block; }
   .cme img, .cbody img.cimg { max-height:120px; max-width:200px; border-radius:8px; display:block; margin-top:6px; cursor:zoom-in; }
   .cbot { display:flex; gap:10px; }
   .cav { width:24px; height:24px; border-radius:7px; background:#3a2c1d; color:var(--accent); display:grid; place-items:center; font-size:12px; flex:none; margin-top:2px; }
@@ -448,9 +449,12 @@ function initChat(t, key) {
   });
   t.ta.addEventListener('paste', e => { if ([...(e.clipboardData && e.clipboardData.items || [])].some(i => i.type.startsWith('image/'))) { e.preventDefault(); ipc.send('write', key, '\x16'); t.ta.placeholder = 'Image added. Type your message…'; } });
   c.addEventListener('click', e => {
-    const d = e.target.closest('[data-stop],[data-term],.csend,.cstep,[data-opt],[data-esc],[data-typesend],a[data-url],img');
+    const d = e.target.closest('[data-now],[data-stop],[data-term],.csend,.cstep,[data-opt],[data-esc],[data-typesend],a[data-url],img');
     if (!d) return;
-    if (d.dataset.stop !== undefined) ipc.send('write', key, '\x1b');
+    if (d.dataset.now !== undefined) { // Esc stops the turn and puts queued messages back in Claude's input box; Enter then sends them at once (tested 2026-11-09)
+      // ponytail: several queued messages go out together as one; their extra 'pend' bubbles stay until the next reply redraws
+      t.col.querySelectorAll('.cnow').forEach(b => b.remove()); ipc.send('write', key, '\x1b'); setTimeout(() => ipc.send('write', key, '\r'), 1500); }
+    else if (d.dataset.stop !== undefined) ipc.send('write', key, '\x1b');
     else if (d.dataset.term !== undefined) setView(t, 'term');
     else if (d.classList.contains('csend')) chatSend(t, key);
     else if (d.dataset.esc !== undefined) ipc.send('write', key, '\x1b');
@@ -484,7 +488,7 @@ function chatSend(t, key) {
   ipc.send('write', key, '\x1b[200~' + text + '\x1b[201~');
   setTimeout(() => ipc.send('write', key, '\r'), 150);
   // Show it at once as a normal bubble; the transcript copy replaces it when Claude takes it in (queued messages wait).
-  if (!text.startsWith('/') && !t.menu) { const d = document.createElement('div'); d.className = 'cme pend'; d.textContent = text; t.col.appendChild(d); }
+  if (!text.startsWith('/') && !t.menu) { const d = document.createElement('div'); d.className = 'cme pend'; d.textContent = text; d.insertAdjacentHTML('beforeend', '<button class="cbtn cnow" data-now title="Stop Claude and send this now">Send now</button>'); t.col.appendChild(d); }
   if (text.startsWith('/') && !KEEP_IN_CHAT.test(text.trim())) setView(t, 'term');
   t.msgs.scrollTop = t.msgs.scrollHeight;
 }
@@ -515,7 +519,7 @@ function scanTerm(t) {
     const q = []; for (let j = lines[0] - 1; j >= 0 && q.length < 6 && !rule(rows[j]); j--) { const x = clean(rows[j]); if (x) q.unshift(x); }
     menu = { q: q.join('\n'), opts: opts.map(label => ({ label })), sel: lines.indexOf(i) };
   }
-  t.live.hidden = !liveTxt; t.live.querySelector('.ltxt').textContent = liveTxt;
+  t.live.hidden = !liveTxt; t.chatEl.classList.toggle('busy', !!liveTxt); t.live.querySelector('.ltxt').textContent = liveTxt;
   t.modeEl.hidden = !mode; t.modeEl.textContent = mode;
   const sig = menu && menu.q + '|' + menu.opts.map(o => o.label).join('|');
   t.menu = menu;

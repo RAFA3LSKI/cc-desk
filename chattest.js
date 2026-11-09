@@ -20,12 +20,18 @@ app.whenReady().then(() => {
         bot: [...t.col.querySelectorAll('.cbody')].map(x => x.innerText.slice(0, 200)), chips: [...t.col.querySelectorAll('.cstep')].map(x => x.className + ' ' + x.innerText),
         ask: t.ask.hidden ? null : t.ask.innerText, live: t.live.hidden ? null : t.live.innerText, modeTag: t.modeEl.hidden ? null : t.modeEl.textContent, pid: t.pid, pidLive: JSON.stringify(liveState.byPid[t.pid] || null), tail: (() => { const b = t.term.buffer.active; let s = ''; for (let i = Math.max(0, b.length - 14); i < b.length; i++) s += b.getLine(i).translateToString(true).trimEnd() + '\\n'; return s; })() }; })()`);
       let s, answered = false; await wait(1000); s = await st(); if (s.ask) { console.log('ASK0', JSON.stringify(s.ask)); await js(`(() => { const bs = [...Object.values(tabs)[0].ask.querySelectorAll('[data-opt]')]; (bs.find(b => /^yes/i.test(b.textContent)) || bs[0]).click(); })()`); await wait(6000); }
-      await js(`(() => { const t = Object.values(tabs)[0]; t.ta.value = 'Use the Bash tool to run: echo chat-ok   Then reply with one short sentence.'; t.chatEl.querySelector('.csend').click(); })()`);
+      const say = m => js(`(() => { const t = Object.values(tabs)[0]; t.ta.value = ${JSON.stringify(m)}; t.chatEl.querySelector('.csend').click(); })()`);
+      if (process.env.SENDNOW) { // DESK SENDNOW=1: queue a message behind a 45 s command, click "Send now", the reply must come long before the command ends
+        await say('Run this exact bash command in the foreground and wait for it: python3 -c "import time; time.sleep(45)" ; then say done'); await wait(7000);
+        await say('Ignore the earlier task. Use the Bash tool to run: echo chat-ok   Then reply with one short sentence.'); await wait(1500);
+        console.log('NOWBTN', await js(`(() => { const b = Object.values(tabs)[0].col.querySelector('.cnow'); const v = b && getComputedStyle(b).display; b && b.click(); return v; })()`)); }
+      else await say('Use the Bash tool to run: echo chat-ok   Then reply with one short sentence.');
+      const t0 = Date.now();
 
       for (let i = 0; i < 45; i++) { await wait(2000); s = await st();
         if (s.ask && !answered) { console.log('ASK', JSON.stringify(s.ask)); answered = true; await js(`(() => { const bs = [...Object.values(tabs)[0].ask.querySelectorAll('[data-opt]')]; (bs.find(b => /^yes/i.test(b.textContent)) || bs[0]).click(); })()`); answered = false; }
-        if (s.bot.join(' ').match(/chat-ok/i) && s.chips.some(c => /ok/.test(c)) && !s.live) break; }
-      console.log('CHAT', JSON.stringify(s, null, 1));
+        if (s.bot.join(' ').match(/chat-ok/i) && !s.live) break; }
+      console.log('SECS', Math.round((Date.now() - t0) / 1000)); console.log('CHAT', JSON.stringify(s, null, 1));
       const img = await Promise.race([this.webContents.capturePage(), wait(5000).then(() => null)]);
       if (img && process.env.SHOT) require('fs').writeFileSync(process.env.SHOT, img.toPNG());
       app.quit();
