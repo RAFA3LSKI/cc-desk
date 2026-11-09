@@ -2,9 +2,9 @@
 
 # CC Desk
 
-A small macOS window for [Claude Code](https://docs.claude.com/en/docs/claude-code) that feels like a chat app: your sessions in a sidebar, the **real `claude` terminal** on the right.
+A small macOS window for [Claude Code](https://docs.claude.com/en/docs/claude-code) that feels like a chat app: your sessions in a sidebar, each one shown as a chat, with the **real `claude` terminal** running underneath (⌘T flips between them).
 
-![CC Desk with four Claude Code sessions in a 2×2 split view](screenshot.png)
+![CC Desk with four Claude Code sessions as chats in a 2×2 split view](screenshot.png)
 
 > Unofficial. Not made by, affiliated with, or endorsed by Anthropic. "Claude" and "Claude Code" are Anthropic's trademarks.
 
@@ -12,6 +12,8 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 
 ## What you get
 - **Sessions sidebar**: every past session under its real title, search, pins, rename (shows in `/resume` too), click to resume. Scripted runs (`claude -p`) stay out of the list.
+- **Chat view:** each session reads as messages (code blocks, lists, tables), with a reply box, a live "working" line with Stop, the current mode, and Claude's questions and permission prompts as buttons. ⌘T (or the Terminal pill) shows the real terminal; menus that need it open there.
+- **Images in the terminal:** pasted and opened images show as small thumbnails on their line; click to enlarge.
 - **Several sessions open at once**, with live status: a pulsing red dot while Claude works, a flashing white dot and title when it needs you, a plain dot when it's finished
 - **Mac notifications** when a session finishes or needs you; click to jump there
 - **Settings window** (⌘,) for model, effort, permissions, theme, notifications, plugins, connections (`claude mcp list`)
@@ -23,7 +25,7 @@ It doesn't replace or modify Claude Code. It runs your installed `claude` in an 
 - **Usage page** in Settings: estimated cost, input, output and cached tokens by session, day, hour and model.
 - **Per-session usage** (turns and tokens), a ⟲ Rewind button, drag files onto a session, an account menu
 - **Updates in the app**: an "Update available" line shows up when there's a new version
-- **Shortcuts:** ⌘, Settings · ⌘B sidebar · ⌘A selects the whole prompt (then Backspace or typing replaces it)
+- **Shortcuts:** ⌘, Settings · ⌘B sidebar · ⌘T chat/terminal · ⌘D / ⇧⌘D split right/down · ⌘A selects the whole prompt (then Backspace or typing replaces it)
 - Opens filling the screen (minus the menu bar and Dock)
 
 ## Support
@@ -59,6 +61,7 @@ Checks (all run hidden, in a sandbox HOME, and never touch your real files or th
 - `DESK_SELFTEST=1 node_modules/.bin/electron selftest.js`: a real `claude` boots in a hidden tab
 - `node uitest.js` and `node uitest-advanced.js`: everyday and advanced clicks with visible-state checks
 - `node uitest-persist.js`: quit and reopen, sessions survive and replay
+- `DESK_SELFTEST=1 node_modules/.bin/electron chattest.js`: a real `claude` answers through the chat box
 
 ## License
 MIT
