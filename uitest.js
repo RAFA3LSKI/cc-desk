@@ -458,8 +458,9 @@ async function run() {
     ok(r.w2[0] < r.w[0] - 100 && r.w2[1] > r.w[1] + 100, 'top row did not resize ' + JSON.stringify(r));
     ok(Math.abs(r.w2[2] - r.w[2]) < 2 && Math.abs(r.w2[3] - r.w[3]) < 2, 'bottom row moved with the top divider ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
   });
-  await flow('34c one pane changes height on its own: the left half of the 2x2 row divider leaves the right column alone', async () => {
+  await flow('34c one pane changes height on its own: the left half of the 2x2 row divider leaves the right column alone, even after a row was resized', async () => {
     await R(`document.querySelector('#layouts [data-l="grid4"]').click()`); await sleep(200);
+    await P(`const d = [...document.querySelectorAll('.divider.x')].map(e => [e, e.getBoundingClientRect()]).sort((a, b) => a[1].top - b[1].top)[0]; drag(d[0], d[1].left + 2, d[1].top + 20, d[1].left - 60, d[1].top + 20); return '1';`); // rows no longer line up
     const r = JSON.parse(await P(`const ks = [...panes], h = ks.map(k => box(k).h), segs = [...document.querySelectorAll('.divider.y')].map(e => [e, e.getBoundingClientRect()]).sort((a, b) => a[1].left - b[1].left);
       const [el, b] = segs[0]; const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2) === el;
       drag(el, b.left + b.width / 2, b.top + 2, b.left + b.width / 2, b.top - 120);
