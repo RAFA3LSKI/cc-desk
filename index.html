@@ -8,7 +8,7 @@
   * { box-sizing:border-box; }
   body { margin:0; display:flex; height:100vh; background:var(--bg); color:var(--text);
          font:13px -apple-system, system-ui, sans-serif; -webkit-font-smoothing:antialiased; overflow:hidden; }
-  #side { width:300px; min-width:300px; background:var(--side); border-right:1px solid var(--line);
+  #side { width:var(--sideW, 300px); min-width:var(--sideW, 300px); position:relative; background:var(--side); border-right:1px solid var(--line);
           display:flex; flex-direction:column; }
   #top { padding:14px 12px 8px; display:flex; flex-direction:column; gap:8px; -webkit-app-region:drag; }
   #top > * { -webkit-app-region:no-drag; }
@@ -63,7 +63,8 @@
   #empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--dim); flex-direction:column; gap:6px; }
   #tip { height:26px; display:flex; align-items:center; padding:0 14px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
   #tip b { color:var(--accent); font-weight:600; }
-  #panel { position:fixed; left:300px; bottom:0; width:340px; max-height:70vh; overflow-y:auto; background:var(--side);
+  #sideGrip { position:absolute; top:0; right:-3px; width:6px; height:100%; cursor:col-resize; z-index:5; }
+  #panel { position:fixed; left:var(--sideW, 300px); bottom:0; width:340px; max-height:70vh; overflow-y:auto; background:var(--side);
            border:1px solid var(--line); border-radius:10px 10px 0 0; padding:12px 14px; }
   #acctRow { margin:0 12px 12px; display:flex; gap:6px; }
   #acct { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; text-align:left; }
@@ -161,7 +162,7 @@
   .ctok { color:var(--dim); font-size:11px; text-align:right; margin-top:-4px; font-variant-numeric:tabular-nums; }
 </style></head>
 <body>
-<div id="side">
+<div id="side"><div id="sideGrip" title="Drag to resize the sidebar (double-click: back to normal)"></div>
   <div id="top">
     <button id="new">+ New session</button>
     <input id="q" placeholder="Search sessions…">
@@ -721,6 +722,12 @@ function toggleSide(on = document.body.classList.contains('noside')) {
   applyLayout(); if (active && tabs[active]) tabs[active].term.focus();
 }
 $('sideBtn').onclick = () => toggleSide();
+// Sidebar width (Raf 2026-11-09): drag its right edge, 180-480 px, double-click resets; saved.
+function setSideW(w) { w = Math.round(Math.min(480, Math.max(180, w))); document.documentElement.style.setProperty('--sideW', w + 'px'); try { localStorage.setItem('sideW', String(w)); } catch {} applyLayout(); }
+$('sideGrip').onmousedown = e => { e.preventDefault(); const mv = ev => setSideW(ev.clientX), up = () => { removeEventListener('mousemove', mv); removeEventListener('mouseup', up); document.body.style.cursor = ''; };
+  document.body.style.cursor = 'col-resize'; addEventListener('mousemove', mv); addEventListener('mouseup', up); };
+$('sideGrip').ondblclick = () => setSideW(300);
+try { const w = +localStorage.getItem('sideW'); if (w) document.documentElement.style.setProperty('--sideW', Math.min(480, Math.max(180, w)) + 'px'); } catch {}
 window.addEventListener('keydown', e => { if (e.metaKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'b') { e.preventDefault(); e.stopPropagation(); toggleSide(); } }, true);
 try { if (localStorage.getItem('side') === '0') document.body.classList.add('noside'); } catch {}
 $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-l]'); if (b) setLayout(b.dataset.l); });

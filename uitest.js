@@ -535,6 +535,17 @@ async function run() {
     ok(await R(`desk === 0 && panes.length === 2`), 'Desk 1 button');
     await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
+  await flow('38 sidebar resizes: drag its edge narrower, panes widen, double-click resets, width saved', async () => {
+    const r = JSON.parse(await P(`const sw = () => $('side').getBoundingClientRect().width, g = $('sideGrip').getBoundingClientRect(), hit = document.elementFromPoint(g.left + 3, innerHeight / 2) === $('sideGrip');
+      const w0 = sw(), t0 = $('terms').getBoundingClientRect().width;
+      $('sideGrip').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: w0 })); dispatchEvent(new MouseEvent('mousemove', { clientX: 200 })); dispatchEvent(new MouseEvent('mouseup', {}));
+      const w1 = sw(), t1 = $('terms').getBoundingClientRect().width, saved = localStorage.getItem('sideW'), pl = getComputedStyle($('panel')).left;
+      dispatchEvent(new MouseEvent('mousemove', { clientX: 400 })); const w2 = sw();
+      $('sideGrip').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return JSON.stringify({ hit, w0, w1, w2, t0, t1, saved, pl, w3: sw(), fitted: fitted() });`));
+    ok(r.hit, 'the grip is covered by something else ' + JSON.stringify(r));
+    ok(r.w0 === 300 && r.w1 === 200 && r.t1 > r.t0 + 90 && r.saved === '200' && r.pl === '200px', 'drag narrower ' + JSON.stringify(r));
+    ok(r.w2 === 200, 'kept resizing after mouseup ' + JSON.stringify(r)); ok(r.w3 === 300 && r.fitted, 'double-click reset / fit ' + JSON.stringify(r));
+  });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');
   note('25 Update & restart click', 'NOT_TESTED_runs install.sh and relaunches');
