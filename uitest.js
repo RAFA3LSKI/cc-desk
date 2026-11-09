@@ -469,6 +469,17 @@ async function run() {
     ok(r.h2[0] < r.h[0] - 80 && r.h2[2] > r.h[2] + 80, 'left column did not change height ' + JSON.stringify(r));
     ok(Math.abs(r.h2[1] - r.h[1]) < 2 && Math.abs(r.h2[3] - r.h[3]) < 2, 'right column moved too ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
   });
+  await flow('34d 2 panes on top, 3 below: the left piece of the row divider changes only the left column', async () => {
+    while (await R(`Object.keys(tabs).length`) < 5) { await R(`$('new').click()`); await sleep(300); }
+    await R(`(() => { const L = () => ({ k: null }); tree = { d: 'y', r: [0.48, 0.52], c: [{ d: 'x', r: [0.527, 0.473], c: [L(), L()] }, { d: 'x', r: [0.251, 0.251, 0.498], c: [L(), L(), L()] }] }; layout = null; applyLayout(); })()`); await sleep(200);
+    const r = JSON.parse(await P(`const ks = [...panes], h = ks.map(k => box(k).h), segs = [...document.querySelectorAll('.divider.y')].map(e => [e, e.getBoundingClientRect()]).sort((a, b) => a[1].left - b[1].left);
+      const [el, b] = segs[0]; drag(el, b.left + b.width / 2, b.top + 2, b.left + b.width / 2, b.top - 100);
+      return JSON.stringify({ segs: segs.length, n: ks.length, h, h2: ks.map(k => box(k).h), fitted: fitted() });`));
+    ok(r.n === 5 && r.segs === 2, 'expected 5 panes and 2 pieces ' + JSON.stringify(r));
+    ok(r.h2[0] < r.h[0] - 60 && r.h2[2] > r.h[2] + 60 && r.h2[3] > r.h[3] + 60, 'left column did not change height ' + JSON.stringify(r));
+    ok(Math.abs(r.h2[1] - r.h[1]) < 2 && Math.abs(r.h2[4] - r.h[4]) < 2, 'right column moved too ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
+    await R(`document.querySelector('#layouts [data-l="grid4"]').click()`); await sleep(200); // flow 35 starts from 2x2
+  });
   await flow('35 more than 4 panes: Cmd+D / Shift+Cmd+D split the focused pane, 6 sessions on screen, all fitted, none overlapping', async () => {
     while (await R(`Object.keys(tabs).length`) < 6) { await R(`$('new').click()`); await sleep(300); }
     await R(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', metaKey: true, bubbles: true }))`); await sleep(100);

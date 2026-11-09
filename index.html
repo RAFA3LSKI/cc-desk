@@ -596,10 +596,10 @@ function applyLayout() {
   const walk = (n, x, y, w, h) => {
     if (n.c) { let at = 0; n.c.forEach((c, i) => { const s = n.r[i];
         if (n.d === 'x') walk(c, x + at * w, y, s * w, h); else walk(c, x, y + at * h, w, s * h); at += s;
-        if (i < n.c.length - 1) { const segs = aligned(n) ? avgCuts(n) : [1]; let s0 = 0; // lined-up cells: one divider piece per cell, so each moves on its own
+        if (i < n.c.length - 1) { const pp = aligned(n) ? null : pairPieces(n, i), segs = aligned(n) ? avgCuts(n) : pp ? pp.C.r : [1]; let s0 = 0; // lined-up cells: one divider piece per cell, so each moves on its own
           segs.forEach((sr, j) => { const d = document.createElement('div'); d.className = 'divider ' + n.d;
             Object.assign(d.style, n.d === 'x' ? { left: pct(x + at * w), top: pct(y + s0 * h), height: pct(sr * h) } : { top: pct(y + at * h), left: pct(x + s0 * w), width: pct(sr * w) });
-            d.onmousedown = segs.length > 1 ? e => dragPiece(e, d, n, i, j, [x, y, w, h]) : e => dragDivider(e, d, n, i, [x, y, w, h]); $('terms').appendChild(d); s0 += sr; }); } }); return; }
+            d.onmousedown = segs.length < 2 ? e => dragDivider(e, d, n, i, [x, y, w, h]) : pp ? e => dragPair(e, d, n, i, j, [x, y, w, h]) : e => dragPiece(e, d, n, i, j, [x, y, w, h]); $('terms').appendChild(d); s0 += sr; }); } }); return; }
     paneBoxes.push({ n, x, y, w, h }); const k = n.k, head = many ? 24 : 0;
     const place = (el, top, bottom, l, r) => Object.assign(el.style, { inset: 'auto', left: `calc(${pct(x)} + ${l}px)`, top: `calc(${pct(y)} + ${top}px)`, width: `calc(${pct(w)} - ${l + r}px)`, height: `calc(${pct(h)} - ${top + bottom}px)` });
     if (many) { const hd = document.createElement('div'); hd.className = 'paneHead' + (k && k === active ? ' on' : ''); if (k) hd.dataset.key = k;
@@ -629,6 +629,26 @@ function dragPiece(e, d, n, i, j, [x, y, w, h]) { // regroup the grid the other 
   n.d = n.d === 'x' ? 'y' : 'x'; n.c = strips; n.r = r; layout = null; applyLayout();
   const before = r.slice(0, j).reduce((a, b) => a + b, 0);
   dragDivider(e, d, strips[j], i, n.d === 'x' ? [x + before * w, y, r[j] * w, h] : [x, y + before * h, w, r[j] * h]);
+}
+// Rows (or columns) i and i+1 with different cell counts: pieces follow the side with fewer cells.
+const cellsOf = (c, d) => !c.c ? { c: [c], r: [1] } : c.d !== d ? { c: c.c, r: c.r } : null;
+function pairPieces(n, i) { const A = cellsOf(n.c[i], n.d), B = cellsOf(n.c[i + 1], n.d); if (!A || !B || A.c.length + B.c.length < 3) return null;
+  return B.c.length < A.c.length ? { C: B, F: A, cFirst: false } : { C: A, F: B, cFirst: true }; }
+function dragPair(e, d, n, i, j, [x, y, w, h]) { // merge the two rows into columns along the coarse side's cuts (the fine side's nearest cuts snap to them), then drag column j only
+  const { C, F, cFirst } = pairPieces(n, i), m = C.c.length, cum = r => r.reduce((a, v) => (a.push(a[a.length - 1] + v), a), [0]);
+  const cc = cum(C.r), fc = cum(F.r), pick = [0]; // pick[s] = index into fc where coarse cut s lands
+  for (let s = 1; s < m; s++) { let best = -1; for (let q = pick[s - 1] + 1; q <= F.c.length - (m - s); q++) if (best < 0 || Math.abs(fc[q] - cc[s]) < Math.abs(fc[best] - cc[s])) best = q; pick.push(best); }
+  pick.push(F.c.length);
+  const other = n.d === 'x' ? 'y' : 'x', hs = [n.r[i], n.r[i + 1]], tot = hs[0] + hs[1];
+  const cols = C.c.map((cell, s) => { const fcells = F.c.slice(pick[s], pick[s + 1]), fr = F.r.slice(pick[s], pick[s + 1]), fs = fr.reduce((a, b) => a + b, 0);
+    const g = fcells.length === 1 ? fcells[0] : { d: other, c: fcells, r: fr.map(v => v / fs) };
+    return { d: n.d, c: cFirst ? [cell, g] : [g, cell], r: [hs[0] / tot, hs[1] / tot] }; });
+  const M = { d: other, c: cols, r: [...C.r] }, before = cc[j];
+  let bx = [x, y, w, h];
+  if (n.c.length === 2) { delete n.k; Object.assign(n, M); } else { const off = n.r.slice(0, i).reduce((a, b) => a + b, 0); n.c.splice(i, 2, M); n.r.splice(i, 2, tot);
+    bx = n.d === 'x' ? [x + off * w, y, tot * w, h] : [x, y + off * h, w, tot * h]; }
+  layout = null; applyLayout();
+  const [X0, Y0, W0, H0] = bx; dragDivider(e, d, cols[j], 0, other === 'x' ? [X0 + before * W0, Y0, C.r[j] * W0, H0] : [X0, Y0 + before * H0, W0, C.r[j] * H0]);
 }
 function dragDivider(e, d, n, i, [x, y, w, h]) { // moves only the two panes on either side
   e.preventDefault(); d.classList.add('drag'); const box = $('terms').getBoundingClientRect(), X = n.d === 'x';
