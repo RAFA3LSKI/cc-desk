@@ -451,6 +451,10 @@ async function run() {
       drag(document.querySelector('.divider.x'), d.left + 2, d.top + d.height / 2, d.left - 150, d.top + d.height / 2);
       return JSON.stringify({ n: document.querySelectorAll('.divider.x').length, w, w2: panes.map(k => box(k).w), fitted: fitted() });`));
     ok(r.n === 2, 'grid4 should have one vertical divider per row, got ' + r.n);
+    const hit = JSON.parse(await P(`Object.values(tabs).forEach(t => setView(t, 'chat'));
+      const bad = [...document.querySelectorAll('.divider')].filter(d => { const b = d.getBoundingClientRect(); const e = document.elementFromPoint(b.left + b.width * (b.width > b.height ? .25 : .5), b.top + b.height * (b.height > b.width ? .25 : .5)); return e !== d; }).length; // off-centre: in 2x2 the middle is where two dividers cross
+      return JSON.stringify({ bad, all: document.querySelectorAll('.divider').length });`));
+    ok(hit.bad === 0, 'dividers covered by the chat view, the mouse cannot grab them ' + JSON.stringify(hit));
     ok(r.w2[0] < r.w[0] - 100 && r.w2[1] > r.w[1] + 100, 'top row did not resize ' + JSON.stringify(r));
     ok(Math.abs(r.w2[2] - r.w[2]) < 2 && Math.abs(r.w2[3] - r.w[3]) < 2, 'bottom row moved with the top divider ' + JSON.stringify(r)); ok(r.fitted, 'not refitted');
   });
