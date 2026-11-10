@@ -423,6 +423,16 @@ async function run() {
     await R(`(async () => { const t = tabs[${key}]; t.sessionId = '${sid}'; await pollChat(t); })()`);
     const m = JSON.parse(await R(`JSON.stringify([...tabs[${key}].chatEl.querySelectorAll('.cme')].map(e => e.textContent).concat([...tabs[${key}].chatEl.querySelectorAll('.cbody')].map(e => e.textContent.trim())))`));
     ok(m.includes('question from raf') && m.includes('answer from claude'), 'transcript did not render as .cme/.cbody ' + JSON.stringify(m));
+    // sent-bubble dedupe (Raf 2026-11-10, "double texts"): a mid-turn message lands as a queued_command attachment, not a user line;
+    // each transcript copy must clear only ITS own pending bubble, so a stale one can't make the next message show twice.
+    const send = s => R(`(() => { const t = tabs[${key}]; t.ta.value = ${JSON.stringify(s)}; chatSend(t, ${key}); })()`);
+    const bubbles = () => R(`JSON.stringify([...tabs[${key}].col.querySelectorAll('.cme')].map(e => (e.classList.contains('pend') ? 'P:' : '') + (e.dataset.text || e.firstChild.textContent)))`).then(JSON.parse);
+    await send('mid turn msg'); fs.appendFileSync(path.join(dir, sid + '.jsonl'), JSON.stringify({ type: 'attachment', attachment: { type: 'queued_command', prompt: 'mid turn msg', commandMode: 'prompt', origin: { kind: 'human' } }, uuid: 'q1', timestamp: new Date().toISOString() }) + '\n');
+    await R(`(async () => { await pollChat(tabs[${key}]); })()`); let bb = await bubbles();
+    ok(bb.filter(x => x === 'mid turn msg').length === 1 && !bb.includes('P:mid turn msg'), 'mid-turn message: ' + JSON.stringify(bb));
+    await send('stale one'); await send('next msg'); fs.appendFileSync(path.join(dir, sid + '.jsonl'), line('user', 'next msg') + '\n');
+    await R(`(async () => { await pollChat(tabs[${key}]); })()`); bb = await bubbles();
+    ok(bb.filter(x => /next msg$/.test(x)).length === 1, 'next message shows twice: ' + JSON.stringify(bb));
     // background job: "1 still running" line shows while it runs (visible, not just set), hides on its <task-notification>
     const bgState = `JSON.stringify((() => { const e = tabs[${key}].bgEl, r = e.getBoundingClientRect(); return { on: !e.hidden && r.height > 0 && getComputedStyle(e).display !== 'none', txt: e.textContent }; })())`;
     fs.appendFileSync(path.join(dir, sid + '.jsonl'), line('assistant', [{ type: 'tool_use', id: 'toolu_bg1', name: 'Bash', input: { command: 'sleep 60', description: 'Wait for clip takes', run_in_background: true } }]) + '\n'

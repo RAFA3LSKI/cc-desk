@@ -491,7 +491,7 @@ function chatSend(t, key) {
   ipc.send('write', key, '\x1b[200~' + text + '\x1b[201~');
   setTimeout(() => ipc.send('write', key, '\r'), 150);
   // Show it at once as a normal bubble; the transcript copy replaces it when Claude takes it in (queued messages wait).
-  if (!text.startsWith('/') && !t.menu) { const d = document.createElement('div'); d.className = 'cme pend'; d.textContent = text; d.insertAdjacentHTML('beforeend', '<button class="cbtn cnow" data-now title="Stop Claude and send this now">Send now</button>'); t.col.appendChild(d); }
+  if (!text.startsWith('/') && !t.menu) { const d = document.createElement('div'); d.className = 'cme pend'; d.dataset.text = text.trim(); d.textContent = text; d.insertAdjacentHTML('beforeend', '<button class="cbtn cnow" data-now title="Stop Claude and send this now">Send now</button>'); t.col.appendChild(d); }
   if (text.startsWith('/') && !KEEP_IN_CHAT.test(text.trim())) setView(t, 'term');
   t.msgs.scrollTop = t.msgs.scrollHeight;
 }
@@ -532,7 +532,7 @@ function scanTerm(t) {
 function chatAdd(t, it) {
   const col = t.col, emp = col.querySelector('.cempty'); if (emp) emp.remove();
   const botBody = () => { if (!t.group) { const g = document.createElement('div'); g.className = 'cbot'; g.innerHTML = '<div class="cav">✻</div><div class="cbody"></div>'; col.appendChild(g); t.group = g.lastChild; } return t.group; };
-  if (it.k === 'user') { t.group = null; t.col.querySelector('.cme.pend')?.remove(); const d = document.createElement('div'); d.className = 'cme'; d.textContent = it.text; for (const s of it.imgs) { const im = document.createElement('img'); im.src = s; d.appendChild(im); } col.appendChild(d); }
+  if (it.k === 'user') { t.group = null; t.col.querySelectorAll('.cme.pend').forEach(p => { if (it.text.includes(p.dataset.text)) p.remove(); }); /* only its own bubble(s): a stale one must not make this message show twice */ const d = document.createElement('div'); d.className = 'cme'; d.textContent = it.text; for (const s of it.imgs) { const im = document.createElement('img'); im.src = s; d.appendChild(im); } col.appendChild(d); }
   else if (it.k === 'cmd' && it.text !== '/clear') { t.group = null; const d = document.createElement('div'); d.className = 'ccmd'; d.textContent = it.text; col.appendChild(d); }
   else if (it.k === 'bot') { const d = document.createElement('div'); d.innerHTML = md(it.text); botBody().appendChild(d); }
   else if (it.k === 'tool') t.tools[it.id] = it; // remembered so a command that times out into the background still has its name

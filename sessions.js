@@ -177,8 +177,10 @@ function chat(id, from = 0) {
   for (const line of b.slice(0, end).split('\n')) {
     // A finished background job: its <task-notification> can sit in a user line, a queued-message line or an attachment, so read it from any line.
     if (line.includes('<task-notification>')) for (const m of line.matchAll(/<task-notification>(?:\\n|\s)*<task-id>[^<]*<\/task-id>(?:\\n|\s)*<tool-use-id>([^<]+)<\/tool-use-id>/g)) items.push({ k: 'bgdone', id: m[1] });
-    if (!line.startsWith('{"') || !(line.includes('"type":"user"') || line.includes('"type":"assistant"'))) continue;
+    if (!line.startsWith('{"') || !(line.includes('"type":"user"') || line.includes('"type":"assistant"') || line.includes('"queued_command"'))) continue;
     let l; try { l = JSON.parse(line); } catch { continue; }
+    // A message Raf sent while Claude was mid-turn is saved as this attachment, never as a user line (Claude Code 2026-11).
+    const q = l.type === 'attachment' && l.attachment; if (q) { if (!l.isSidechain && q.type === 'queued_command' && q.commandMode === 'prompt' && typeof q.prompt === 'string' && !q.prompt.trim().startsWith('<')) items.push({ k: 'user', text: q.prompt, imgs: [] }); continue; }
     if (l.isSidechain || l.isMeta || !l.message || (l.type !== 'user' && l.type !== 'assistant')) continue;
     const c = l.message.content;
     if (l.type === 'user') {
