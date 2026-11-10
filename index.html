@@ -69,7 +69,8 @@
   #acctRow { margin:0 12px 12px; display:flex; gap:6px; }
   #acct { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; text-align:left; }
   #optBtn { flex:none; width:38px; padding:0; font-size:16px; display:flex; align-items:center; justify-content:center; }
-  #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } #acctPlan { color:var(--dim); font-size:11px; }
+  #acctMail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #acctMail, #menu .mail { filter:blur(5px); transition:filter .15s; } #acct:hover #acctMail, #menu .mail:hover { filter:none; } /* privacy: hide email from onlookers */ #acctPlan { color:var(--dim); font-size:11px; }
   #menu { position:fixed; left:12px; bottom:70px; width:290px; background:#232429; border:1px solid var(--line);
           border-radius:12px; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.4); z-index:9; }
   #menu .mail { color:var(--dim); padding:6px 10px 8px; overflow:hidden; text-overflow:ellipsis; }
