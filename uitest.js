@@ -529,18 +529,20 @@ async function run() {
     ok(await R(`leaves().length === 6 && $('nPanes').value === '6'`), '+ button should add one pane');
     await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
-  await flow('37 desks: Desk 2 has its own panes, desk-1 sessions never show there, sidebar click jumps to the right desk, survives a reload', async () => {
+  await flow('37 desks: Desk 2 and Desk 3 have its own panes, desk-1 sessions never show there, sidebar click jumps to the right desk, survives a reload', async () => {
     await R(`document.querySelector('#layouts [data-l="cols2"]').click()`); await sleep(200);
     const r = JSON.parse(await P(`const d1 = [...panes]; document.querySelector('#desks [data-desk="1"]').click();
       const a = { d1, desk: desk, p2: [...panes], vis: d1.map(k => tabs[k].el.style.visibility), on: document.querySelector('#desks .on').dataset.desk };
       show(d1[0]); const b = { desk: desk, p: [...panes] }; show(a.p2[0]); const c = { desk: desk, p: [...panes] };
-      return JSON.stringify({ ...a, b, c });`));
+      document.querySelector('#desks [data-desk="2"]').click(); const e = { desk: desk, p: [...panes], on: document.querySelector('#desks .on').dataset.desk }; show(d1[0]); const f = { desk: desk }; show(a.p2[0]);
+      return JSON.stringify({ ...a, b, c, e, f });`));
     ok(r.d1.length === 2 && r.desk === 1 && r.on === '1', 'Desk 2 button ' + JSON.stringify(r));
     ok(r.p2.length === 1 && !r.d1.includes(r.p2[0]) && r.vis.every(v => v === 'hidden'), 'desk-1 sessions leaked onto Desk 2 ' + JSON.stringify(r));
     ok(r.b.desk === 0 && JSON.stringify(r.b.p) === JSON.stringify(r.d1), 'clicking a desk-1 session should jump back to Desk 1 unchanged ' + JSON.stringify(r));
     ok(r.c.desk === 1 && r.c.p[0] === r.p2[0], 'clicking a Desk 2 session should jump to Desk 2 ' + JSON.stringify(r));
-    const saved = await R(`JSON.stringify([desk, tree, other.tree])`); await R(`tree = { k: null }; other = { tree: { k: null }, layout: 'one' }; desk = 0; loadSplit(); applyLayout()`); await sleep(100);
-    ok(await R(`JSON.stringify([desk, tree, other.tree])`) === saved, 'desks not restored from storage');
+    ok(r.e.desk === 2 && r.e.on === '2' && !r.e.p.some(k => r.d1.includes(k) || k === r.p2[0]) && r.f.desk === 0, 'Desk 3 ' + JSON.stringify(r));
+    const sv = await R(`JSON.stringify([desk, tree, saved])`); await R(`tree = { k: null }; saved = [null, { tree: { k: null }, layout: 'one' }, { tree: { k: null }, layout: 'one' }]; desk = 0; loadSplit(); applyLayout()`); await sleep(100);
+    ok(await R(`JSON.stringify([desk, tree, saved])`) === sv, 'desks not restored from storage');
     await R(`document.querySelector('#desks [data-desk="0"]').click()`); await sleep(100);
     ok(await R(`desk === 0 && panes.length === 2`), 'Desk 1 button');
     await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
