@@ -228,11 +228,12 @@ async function run() {
   });
   await flow('21 window resize keeps terminal fitted', async () => {
     win.setPosition(-4000, -4000); win.setOpacity(0.01); win.showInactive(); await sleep(400); // macOS sends no resize to a hidden window; off-screen and takes no focus
+    wc.setBackgroundThrottling(false); // an off-screen window can count as covered: no frames, so no resize event reaches the page (failed 3 of 7 runs on 2026-11-14)
     for (const [w, h] of [[900, 600], [1300, 850], [1000, 700]]) { win.setSize(w, h); await sleep(600);
       const r = JSON.parse(await R(`JSON.stringify((() => { const t = tabs[active], d = t.fit.proposeDimensions(), a = t.el.getBoundingClientRect(), b = $('terms').getBoundingClientRect();
         return { cols: t.term.cols, rows: t.term.rows, pc: d.cols, pr: d.rows, inside: a.right <= b.right + 1 && a.bottom <= b.bottom + 1, w: innerWidth }; })())`));
-      ok(r.cols === r.pc && r.rows === r.pr && r.inside, `${w}x${h}: ${JSON.stringify(r)}`); }
-    win.hide();
+      ok(r.cols === r.pc && r.rows === r.pr && r.inside, `${w}x${h}: ${JSON.stringify(r)} visible=${win.isVisible()} size=${win.getSize()}`); }
+    wc.setBackgroundThrottling(true); win.hide(); // back on BEFORE hiding: hiding while it is off leaves the page running at full speed, and the next flows expect a throttled hidden page
   });
   await flow('27 Usage: real numbers, tabs, pills, session detail, limits', async () => {
     const SID = '11111111-1111-4111-8111-111111111111', dir = path.join(os.homedir(), '.claude/projects/-usagefix'), now = new Date().toISOString();
@@ -557,6 +558,24 @@ async function run() {
     ok(r.hit, 'the grip is covered by something else ' + JSON.stringify(r));
     ok(r.w0 === 300 && r.w1 === 200 && r.t1 > r.t0 + 90 && r.saved === '200' && r.pl === '200px', 'drag narrower ' + JSON.stringify(r));
     ok(r.w2 === 200, 'kept resizing after mouseup ' + JSON.stringify(r)); ok(r.w3 === 300 && r.fitted, 'double-click reset / fit ' + JSON.stringify(r));
+  });
+  await flow('39 model/effort picker: sends the command, holds the Settings default, never types into a question', async () => {
+    await R(`saveSetting('model', 'opus').then(() => saveSetting('effortLevel', 'medium'))`);
+    fs.writeFileSync(path.join(os.homedir(), 'probe'), ''); await R(`$('new').click()`); await sleep(1500); fs.unlinkSync(path.join(os.homedir(), 'probe'));
+    const scr = () => R(`(() => { const b = tabs[active].term.buffer.active; let s = ''; for (let i = 0; i < b.length; i++) s += b.getLine(i).translateToString(true) + '\\n'; return s; })()`);
+    const pickSel = (id, v) => R(`$('${id}').value = '${v}'; $('${id}').dispatchEvent(new Event('change')); 0`);
+    const edit = f => { const j = JSON.parse(fs.readFileSync(SETF, 'utf8')); f(j); fs.writeFileSync(SETF, JSON.stringify(j, null, 2)); }, cur = () => JSON.parse(fs.readFileSync(SETF, 'utf8'));
+    ok(await R(`!$('mdl').hidden && $('mdlSel').value === 'opus' && $('effSel').value === 'medium' && $('mdl').getBoundingClientRect().width > 60`), 'picker not showing the defaults');
+    await pickSel('mdlSel', 'fable'); await sleep(900); ok(/GOT:\/model fable/.test(await scr()), '/model fable not sent');
+    edit(j => { j.model = 'fable'; }); await sleep(2600); ok(cur().model === 'opus', 'default model not put back: ' + cur().model); // what Claude Code's /model does to the file
+    await pickSel('effSel', 'high'); await sleep(900); ok(/GOT:\/effort high/.test(await scr()), '/effort high not sent');
+    edit(j => { j.modelSettings = { ...(j.modelSettings || {}), 'claude-fable-5-2': { effortLevel: 'high' } }; }); await sleep(2600);
+    ok(cur().effortLevel === 'medium' && Object.values(cur().modelSettings).every(m => m.effortLevel === 'medium'), 'default effort not put back: ' + JSON.stringify(cur().modelSettings));
+    ok(await R(`$('mdlSel').value === 'fable' && $('effSel').value === 'high'`), 'picker forgot this session\'s pick');
+    await R(`tabs[active].menu = { sel: 1, opts: ['Yes', 'No'] }; $('mdlSel').value = 'haiku'; $('mdlSel').dispatchEvent(new Event('change')); tabs[active].menu = null; 0`); await sleep(900);
+    ok(!/GOT:\/model haiku/.test(await scr()), 'typed into a session that was showing a question'); ok(await R(`$('mdlSel').value === 'fable'`), 'picker did not go back after the blocked pick');
+    await R(`saveSetting('model', 'sonnet')`); edit(j => { j.model = 'fable'; }); await sleep(2600); ok(cur().model === 'sonnet', 'a default changed in Settings was not the one held: ' + cur().model);
+    await R(`saveSetting('model', 'opus')`);
   });
   await flow('22 JS console errors', async () => { ok(!jserr.length, jserr.join(' | ')); });
   note('23 Load more (>300 sessions)', 'NOT_TESTED_needs 300+ fixtures'); note('24 drag-drop file onto session', 'NOT_TESTED_needs real OS file drop');

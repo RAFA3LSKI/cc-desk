@@ -14,7 +14,7 @@ const read = f => {
 const oneOf = list => v => list.includes(v);
 const bool = v => typeof v === 'boolean';
 const ALLOWED = {
-  model: oneOf(['opus', 'sonnet', 'haiku']),
+  model: oneOf(['fable', 'opus', 'sonnet', 'haiku']),
   effortLevel: oneOf(['low', 'medium', 'high', 'xhigh', 'max']),
   theme: oneOf(['dark', 'light']),
   autoCompactEnabled: bool,
