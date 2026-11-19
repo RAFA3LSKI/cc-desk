@@ -530,7 +530,7 @@ async function run() {
     ok(await R(`leaves().length === 6 && $('nPanes').value === '6'`), '+ button should add one pane');
     await R(`document.querySelector('#layouts [data-l="one"]').click()`); await sleep(200);
   });
-  await flow('37 desks: Desk 2 and Desk 3 have its own panes, desk-1 sessions never show there, sidebar click jumps to the right desk, survives a reload', async () => {
+  await flow('37 desks: Desk 2, 3 and 4 have their own panes, desk-1 sessions never show there, sidebar click jumps to the right desk, survives a reload', async () => {
     await R(`document.querySelector('#layouts [data-l="cols2"]').click()`); await sleep(200);
     const r = JSON.parse(await P(`const d1 = [...panes]; document.querySelector('#desks [data-desk="1"]').click();
       const a = { d1, desk: desk, p2: [...panes], vis: d1.map(k => tabs[k].el.style.visibility), on: document.querySelector('#desks .on').dataset.desk };
@@ -542,7 +542,9 @@ async function run() {
     ok(r.b.desk === 0 && JSON.stringify(r.b.p) === JSON.stringify(r.d1), 'clicking a desk-1 session should jump back to Desk 1 unchanged ' + JSON.stringify(r));
     ok(r.c.desk === 1 && r.c.p[0] === r.p2[0], 'clicking a Desk 2 session should jump to Desk 2 ' + JSON.stringify(r));
     ok(r.e.desk === 2 && r.e.on === '2' && !r.e.p.some(k => r.d1.includes(k) || k === r.p2[0]) && r.f.desk === 0, 'Desk 3 ' + JSON.stringify(r));
-    const sv = await R(`JSON.stringify([desk, tree, saved])`); await R(`tree = { k: null }; saved = [null, { tree: { k: null }, layout: 'one' }, { tree: { k: null }, layout: 'one' }]; desk = 0; loadSplit(); applyLayout()`); await sleep(100);
+    const g = JSON.parse(await P(`document.querySelector('#desks [data-desk="3"]').click(); const x = { desk: desk, on: document.querySelector('#desks .on').dataset.desk, n: document.querySelectorAll('#desks [data-desk]').length, p: [...panes] }; document.querySelector('#desks [data-desk="0"]').click(); return JSON.stringify(x);`));
+    ok(g.n === 4 && g.desk === 3 && g.on === '3' && g.p.every(k => !r.d1.includes(k) && k !== r.p2[0]), 'Desk 4 ' + JSON.stringify(g));
+    const sv = await R(`JSON.stringify([desk, tree, saved])`); await R(`tree = { k: null }; saved = [null, { tree: { k: null }, layout: 'one' }, { tree: { k: null }, layout: 'one' }, { tree: { k: null }, layout: 'one' }]; desk = 0; loadSplit(); applyLayout()`); await sleep(100);
     ok(await R(`JSON.stringify([desk, tree, saved])`) === sv, 'desks not restored from storage');
     await R(`document.querySelector('#desks [data-desk="0"]').click()`); await sleep(100);
     ok(await R(`desk === 0 && panes.length === 2`), 'Desk 1 button');

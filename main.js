@@ -116,6 +116,29 @@ ipcMain.handle('open', async (e, key, cwd, resumeId, cols, rows, title) => {
 });
 // What the helper kept running while the app was closed. Never starts the helper; the smoke test must not touch real sessions.
 ipcMain.handle('running', async () => { if (SMOKE) return []; const items = await D.list(); items.forEach(x => live.add(x.key)); return items; });
+// "Was open" marker (Raf 2026-11-19): after a Mac restart the helper and its sessions are gone, so the sidebar badges the chats
+// that were open before, and Raf doesn't reopen an old look-alike. ~/.claude-desk-open.json = { ts, open: { sessionId: lastSeenMs } },
+// written every 60 s, at Mac shutdown and at quit. Pty exits during shutdown would empty the list first, so an id stays for 3 min after it was last seen.
+const OPENF = require('path').join(S.HOME, '.claude-desk-open.json'), GRACE = 180000;
+const readOpen = () => { try { return JSON.parse(require('fs').readFileSync(OPENF, 'utf8')); } catch { return { ts: 0, open: {} }; } };
+const before = readOpen().open || {}; let wasOpen = null, snapOpen = { ...before }; // before = the last run's list, read before the first write
+const writeOpen = () => { try { require('fs').writeFileSync(OPENF, JSON.stringify({ ts: Date.now(), open: snapOpen })); } catch {} };
+async function snapshot() {
+  if (SMOKE) return;
+  const items = live.size ? await D.list().catch(() => []) : [], lv = S.live().byPid, now = Date.now();
+  for (const x of items) { const id = (lv[x.pid] || {}).id || (x.meta || {}).resumeId; if (id) snapOpen[id] = now; }
+  for (const id in snapOpen) if (now - snapOpen[id] > GRACE) delete snapOpen[id];
+  writeOpen();
+}
+ipcMain.handle('wasOpen', async () => { // badged = open before, not running now (those come back as tabs anyway)
+  if (!wasOpen) { const items = SMOKE ? [] : await D.list().catch(() => []), lv = S.live().byPid, now = new Set();
+    for (const x of items) { now.add((lv[x.pid] || {}).id); now.add((x.meta || {}).resumeId); }
+    wasOpen = Object.fromEntries(Object.entries(before).filter(([id]) => !now.has(id))); }
+  return wasOpen;
+});
+const SNAP = +process.env.DESK_SNAP_MS || 60000; // tests shorten it
+app.whenReady().then(() => { setTimeout(() => snapshot(), Math.min(20000, SNAP)); setInterval(() => snapshot(), SNAP); require('electron').powerMonitor.on('shutdown', () => snapshot()); });
+app.on('will-quit', () => { if (!SMOKE && Object.keys(snapOpen).length) writeOpen(); }); // sync, so it keeps the last 60 s tick's list
 ipcMain.on('attach', (e, k, c, r) => D.attach(k, c, r));
 ipcMain.on('write', (e, k, d) => live.has(k) && D.write(k, d));
 const sizes = new Map(); // last size each tab asked for, kept even while its pty is starting
