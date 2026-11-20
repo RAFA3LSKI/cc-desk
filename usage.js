@@ -75,6 +75,28 @@ async function scan({ root = ROOT, cacheFile = CACHE, progress = () => {} } = {}
   return { rows: [...rows.values()], unpriced: [...unpriced] };
 }
 
+// Per-range report for the Usage page (R-04), built here so the page only draws it. Local time, same as the page's old maths.
+// days: one entry per calendar day from the range start (or first use) to today; hours: 24 buckets by local hour of day; sessions: by $ desc, `last` = start of the newest hour used.
+const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const zero = () => ({ c: 0, i: 0, o: 0, w: 0, r: 0 });
+const addTo = (a, x) => { a.c += x.c; a.i += x.i; a.o += x.o; a.w += x.w; a.r += x.r; return a; };
+function summarize(rows, now = Date.now()) {
+  const sod = new Date(now); sod.setHours(0, 0, 0, 0);
+  const since = { today: +sod, '7d': new Date(sod).setDate(sod.getDate() - 6), '30d': new Date(sod).setDate(sod.getDate() - 29), all: 0 }, out = {};
+  for (const [name, from] of Object.entries(since)) {
+    const rs = rows.filter(x => x.h >= from), tot = zero(), days = new Map(), hours = Array.from({ length: 24 }, (_, h) => ({ h, ...zero() })), ses = new Map();
+    for (const x of rs) {
+      addTo(tot, x); const k = dayKey(x.h); addTo(days.get(k) || days.set(k, { d: k, ...zero() }).get(k), x);
+      addTo(hours[new Date(x.h).getHours()], x);
+      const s = ses.get(x.s) || ses.set(x.s, { s: x.s, last: 0, ...zero() }).get(x.s); addTo(s, x); s.last = Math.max(s.last, x.h);
+    }
+    const list = [], d = new Date(from || (rs.length ? Math.min(...rs.map(x => x.h)) : now)); d.setHours(0, 0, 0, 0);
+    for (; +d <= now; d.setDate(d.getDate() + 1)) { const k = dayKey(+d); list.push(days.get(k) || { d: k, ...zero() }); }
+    out[name] = { tot, days: list, hours, sessions: [...ses.values()].sort((a, b) => b.c - a.c) };
+  }
+  return out;
+}
+
 // One session for the tab badge: its transcript plus its agents, same parse and prices as the Usage > Sessions tab.
 // Streams the file (no worker), and skips files that haven't changed since the last call.
 const one = new Map();
@@ -125,6 +147,8 @@ async function selfcheck() {
   fs.appendFileSync(main, line('m7', 'claude-sonnet-5-5', { input_tokens: 0, output_tokens: 1e6 }));
   assert(Math.abs(total((await scan(opts)).rows) - 43.3) < 1e-9, 'changed file was not re-read');
   const one = await session(main); assert(Math.abs(one.c - 43.3) < 1e-9 && one.tok === 7.2e6 + 10, 'session badge ' + JSON.stringify(one));
+  const sm = summarize(a.rows, Date.parse('2026-11-04T12:00:00Z')).all; // fixture rows are all one hour of 2026-11-04 (UTC 10:00)
+  assert(Math.abs(sm.tot.c - 33.3) < 1e-9 && sm.sessions.length === 1 && sm.days.length === 1 && sm.days[0].c === sm.tot.c && sm.hours.reduce((t, x) => t + x.c, 0) === sm.tot.c, 'summarize ' + JSON.stringify(sm.tot));
   fs.rmSync(d, { recursive: true });
   return 'usage selfcheck OK';
 }
@@ -132,8 +156,8 @@ async function selfcheck() {
 if (!isMainThread && workerData === 'usage-scan') {
   scan({ progress: (done, total) => parentPort.postMessage({ progress: { done, total } }) }).then(data => {
     const titles = {}; try { for (const s of require('./sessions').list(1e9).items) titles[s.id] = s.title; } catch {}
-    parentPort.postMessage({ result: { ...data, titles } });
+    parentPort.postMessage({ result: { ...data, titles, summary: summarize(data.rows) } });
   }).catch(e => { throw e; });
 }
 if (isMainThread && require.main === module) selfcheck().then(console.log, e => { console.error('FAIL:', e.message); process.exit(1); });
-module.exports = { get, session, selfcheck };
+module.exports = { get, session, selfcheck, summarize };

@@ -235,6 +235,34 @@ async function run() {
       ok(r.cols === r.pc && r.rows === r.pr && r.inside, `${w}x${h}: ${JSON.stringify(r)} visible=${win.isVisible()} size=${win.getSize()}`); }
     wc.setBackgroundThrottling(true); win.hide(); // back on BEFORE hiding: hiding while it is off leaves the page running at full speed, and the next flows expect a throttled hidden page
   });
+  await flow('40 Usage report: totals split, one day bar, one hour bar, session table values', async () => {
+    const dir = path.join(os.homedir(), '.claude/projects/-usagereport'), A = '40000000-0000-4000-8000-00000000000a', B = '40000000-0000-4000-8000-00000000000b';
+    const at = (back, h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); d.setDate(d.getDate() - back); return d.toISOString(); }, dayStr = back => { const d = new Date(); d.setDate(d.getDate() - back); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const L = (sid, ts, id, u) => JSON.stringify({ type: 'assistant', timestamp: ts, sessionId: sid, cwd: os.homedir(), message: { id, model: 'claude-sonnet-5-5', usage: u } });
+    fs.mkdirSync(path.join(dir, B, 'subagents'), { recursive: true });
+    fs.writeFileSync(path.join(dir, A + '.jsonl'), [JSON.stringify({ type: 'custom-title', customTitle: 'Alpha report', sessionId: A }), L(A, at(2, 9, 30), 'r1', { input_tokens: 1e6, output_tokens: 1e5 }), // $3.00
+      L(A, at(1, 14, 15), 'r2', { input_tokens: 0, output_tokens: 2e5, cache_creation_input_tokens: 4e5, cache_read_input_tokens: 1e6 })].join('\n') + '\n'); // $2.00 + $1.00 + $0.10
+    fs.writeFileSync(path.join(dir, B + '.jsonl'), [JSON.stringify({ type: 'user', cwd: os.homedir(), sessionId: B, message: { content: 'Beta first prompt' } }), L(B, at(1, 14, 40), 'r3', { input_tokens: 5e5, output_tokens: 0 })].join('\n') + '\n'); // $1.00
+    fs.writeFileSync(path.join(dir, B, 'subagents', 'agent-b.jsonl'), L(B, at(1, 9, 5), 'r4', { input_tokens: 1e5, output_tokens: 1e5 }) + '\n'); // agent $0.20 + $1.00, counts toward Beta
+    await R(`US.data = null; US.at = 0; openSettings('usage')`);
+    for (let i = 0; i < 80 && !(await R(`!!(US.data && US.data.summary)`)); i++) await sleep(250);
+    ok(await R(`!!(US.data && US.data.summary)`), 'summary never loaded'); await sleep(200);
+    const tiles = await R(`[...document.querySelectorAll('#uTot .uTile')].map(e => e.textContent)`);
+    ok(await R(`US.range`) === '7d', 'default range is not 7 days');
+    ok(JSON.stringify(tiles) === JSON.stringify(['$8.30Estimated cost', '1.6MInput', '400.0kOutput', '400.0kCache write', '1.0MCache read']), 'totals: ' + JSON.stringify(tiles));
+    const cols = sel => R(`[...document.querySelectorAll('${sel}')].map(e => e.dataset.read)`);
+    const days = await cols('.uCh:nth-of-type(1) .uCol'), all = await R(`[...document.querySelectorAll('.uCh')].map(c => [...c.querySelectorAll('.uCol')].map(e => e.dataset.read))`);
+    ok(all.length === 2 && all[0].length === 7 && all[1].length === 24, 'chart bar counts: ' + all.map(a => a.length));
+    ok(all[0].some(r => r.startsWith(dayStr(1) + ': $5.30')), 'day bar yesterday: ' + all[0].join(' | '));
+    ok(all[0].some(r => r.startsWith(dayStr(2) + ': $3.00')), 'day bar 2 days ago: ' + all[0].join(' | '));
+    ok(all[1][14].startsWith('14:00: $4.10') && all[1][9].startsWith('09:00: $4.20') && all[1][3].startsWith('03:00: $0.00'), 'hour bars: ' + [all[1][3], all[1][9], all[1][14]].join(' | '));
+    ok(await shownEl('.uChart') && await shownEl('#uSes'), 'charts or table not visible');
+    const rows = await R(`[...document.querySelectorAll('#uSes .uTr:not(.hd)')].map(r => [r.querySelector('.t').textContent, r.querySelector('.c').textContent, ...[...r.querySelectorAll('.m > span')].map(s => s.textContent.replace(/^(in|out|cache) /, ''))])`);
+    const want = [['Alpha report', '$6.10', '1.0M', '300.0k', '1.4M', dayStr(1).slice(5) + ' 14:00'], ['Beta first prompt', '$2.20', '600.0k', '100.0k', '0', dayStr(1).slice(5) + ' 14:00']];
+    ok(JSON.stringify(rows) === JSON.stringify(want), 'session rows: ' + JSON.stringify(rows));
+    await R(`$('setClose').click()`); await sleep(100);
+    async function shownEl(sel) { return R(`(() => { const e = document.querySelector('${sel}'); return !!e && e.getBoundingClientRect().height > 0; })()`); }
+  });
   await flow('27 Usage: real numbers, tabs, pills, session detail, limits', async () => {
     const SID = '11111111-1111-4111-8111-111111111111', dir = path.join(os.homedir(), '.claude/projects/-usagefix'), now = new Date().toISOString();
     const L = (id, model, u) => JSON.stringify({ type: 'assistant', timestamp: now, sessionId: SID, cwd: os.homedir(), message: { id, model, usage: u } });
@@ -251,7 +279,7 @@ async function run() {
     for (let i = 0; i < 80 && !(await R(`!!US.data`)); i++) await sleep(250);
     ok(await R(`!!US.data`), 'data never loaded: ' + await text());
     let t = await text(); ok(/This week/.test(t) && /62% used/.test(t), 'weekly bar missing: ' + t.slice(0, 200)); ok(!/5-hour window/.test(t), 'a limit the plan does not report must stay hidden');
-    ok(await shown('.uChart') && await shown('.uTiles'), 'overview chart or tiles not visible');
+    ok(await shown('.uChart') && await shown('.uTiles5'), 'overview chart or tiles not visible');
     await click('tab', 'sessions'); t = await text(); ok(/Usage fixture/.test(t) && /\$16\.00/.test(t), 'session row wrong (dedupe or agent rollup): ' + t.slice(0, 300));
     await click('session', SID); t = await text(); ok(/\$16\.00/.test(t) && /Sonnet 5\.5/.test(t) && /Opus 5\.5/.test(t), 'session detail: ' + t.slice(0, 300)); ok(await shown('.uChart'), 'session chart not visible');
     await click('back'); ok(!/All sessions/.test(await text()), 'back did not leave the detail');
@@ -538,6 +566,10 @@ async function run() {
       document.querySelector('#desks [data-desk="2"]').click(); const e = { desk: desk, p: [...panes], on: document.querySelector('#desks .on').dataset.desk }; show(d1[0]); const f = { desk: desk }; show(a.p2[0]);
       return JSON.stringify({ ...a, b, c, e, f });`));
     ok(r.d1.length === 2 && r.desk === 1 && r.on === '1', 'Desk 2 button ' + JSON.stringify(r));
+    const lit = JSON.parse(await P(`const k = saved[0] && leaves(saved[0].tree).map(l => l.k).find(Boolean), t = tabs[k], keep = liveState;
+      liveState = { byId: {}, byPid: { [t.pid]: { status: 'waiting', pid: t.pid } } }; lightDesks(); const cls = [...document.querySelectorAll('#desks [data-desk]')].map(b => b.classList.contains('needs'));
+      liveState = { byId: {}, byPid: {} }; lightDesks(); const off = [...document.querySelectorAll('#desks [data-desk]')].some(b => b.classList.contains('needs')); liveState = keep; lightDesks(); return JSON.stringify({ cls, off });`));
+    ok(lit.cls[0] && !lit.cls[1] && !lit.cls[2] && !lit.cls[3] && !lit.off, 'Desk 1 button should flash while a Desk 1 chat waits (only then) ' + JSON.stringify(lit));
     ok(r.p2.length === 1 && !r.d1.includes(r.p2[0]) && r.vis.every(v => v === 'hidden'), 'desk-1 sessions leaked onto Desk 2 ' + JSON.stringify(r));
     ok(r.b.desk === 0 && JSON.stringify(r.b.p) === JSON.stringify(r.d1), 'clicking a desk-1 session should jump back to Desk 1 unchanged ' + JSON.stringify(r));
     ok(r.c.desk === 1 && r.c.p[0] === r.p2[0], 'clicking a Desk 2 session should jump to Desk 2 ' + JSON.stringify(r));

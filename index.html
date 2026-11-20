@@ -32,6 +32,7 @@
   .dot.busy { background:var(--wait); animation:pulse 1.2s infinite; } /* Raf 2026-11-04: working = red, needs you = flashing white */
   .dot.waiting { background:#fff; box-shadow:0 0 6px #fff; animation:flash .8s steps(1) infinite; } .it:has(.dot.waiting) .t { animation:flash .8s steps(1) infinite; }
   @keyframes flash { 50% { opacity:.2; } }
+  #desks button.needs { color:#fff; box-shadow:inset 0 0 0 1px #fff; animation:flash .8s steps(1) infinite; } /* a chat on this hidden desk waits for Raf (R-03, 2026-11-19) */
   .dot.idle { background:var(--idle); } .dot.open { border:1px solid var(--dim); }
   @keyframes pulse { 50% { opacity:.35; } }
   #foot { border-top:1px solid var(--line); padding:8px 12px; display:flex; gap:6px; }
@@ -117,6 +118,14 @@
   .uAxis { display:flex; justify-content:space-between; color:var(--dim); font-size:11px; margin-top:3px; }
   .uRow { display:flex; align-items:center; gap:12px; width:100%; padding:8px; border:0; border-radius:7px; text-align:left; }
   .uRow:hover { background:#232429; } .uRow .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .uRow .v { color:var(--dim); font-size:12px; white-space:nowrap; }
+  .uTiles5 { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; margin:12px 0; }
+  .uH { margin:16px 0 0; font-size:13px; font-weight:600; } .uTbl { container-type:inline-size; margin-top:6px; }
+  .uTr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 12px; padding:7px 8px; border-radius:7px; font-size:12px; } .uTr:nth-child(even) { background:#202126; }
+  .uTr .t { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; } .uTr .c { text-align:right; font-weight:600; } .uTr .m { grid-column:1 / -1; color:var(--dim); display:flex; flex-wrap:wrap; gap:0 12px; }
+  @container (min-width:540px) { .uTr { grid-template-columns:minmax(0,1fr) 64px 60px 60px 60px 92px; } .uTr .c, .uTr .n { text-align:right; } .uTr .m { display:contents; } .uTr .m span { text-align:right; color:var(--dim); } }
+  .uTr .m .lbl { display:inline; } @container (min-width:540px) { .uTr .m .lbl { display:none; } .uTr.hd { color:var(--dim); } }
+  .uTr.hd { display:none; } @container (min-width:540px) { .uTr.hd { display:grid; } }
+  .uMore { margin-top:8px; display:inline-block; }
   .uTag { color:var(--accent); font-size:11px; margin-left:6px; } .uPager { display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px; }
   #panel h4 { margin:10px 0 4px; color:var(--dim); font-size:11px; text-transform:uppercase; }
   #panel div.n { padding:2px 0; }
@@ -259,9 +268,13 @@ function render() {
 }
 
 async function refresh() { const r = await ipc.invoke('list', limit); sessions = r.items; total = r.total; render(); }
+// Desk button flashes white while a chat on that (hidden) desk waits for an answer, like the sidebar's waiting dot.
+function lightDesks() { document.querySelectorAll('#desks [data-desk]').forEach(b => { const d = saved[+b.dataset.desk];
+  b.classList.toggle('needs', !!d && leaves(d.tree).some(l => l.k && tabs[l.k] && statusOf(tabs[l.k].sessionId, l.k) === 'waiting')); }); }
 async function refreshLive() {
   liveState = await ipc.invoke('live');
   notify();
+  lightDesks();
   for (const t of Object.values(tabs)) { const v = liveState.byPid[t.pid]; if (v && v.id && v.id !== t.sessionId) { t.sessionId = v.id; t.title = 'New session'; } } // a new id means /clear or a new chat
   syncTabTitles();
   render();
@@ -949,7 +962,7 @@ function uChart(entries, hint, pick, tall) {
   const max = Math.max(...entries.map(e => e.v), 0);
   const cols = entries.map(e => `<button class="uCol ${US.pick === e.k ? 'on' : ''}" ${pick ? `data-u="pick" data-v="${e.k}"` : 'tabindex="-1"'} data-read="${esc(e.read)}" aria-label="${esc(e.read)}"><span style="height:${max ? Math.max(e.v ? 2 : 0, e.v / max * 100) : 0}%"></span></button>`).join('');
   const n = entries.length, labels = n > 2 ? [entries[0], entries[n >> 1], entries[n - 1]] : entries;
-  return `<div class="uRead" id="uRead">${esc(hint)}</div><div class="uChart ${tall ? 'tall' : ''}">${cols}</div><div class="uAxis">${labels.map(e => `<span>${esc(e.label)}</span>`).join('')}</div>`;
+  return `<div class="uCh"><div class="uRead">${esc(hint)}</div><div class="uChart ${tall ? 'tall' : ''}">${cols}</div><div class="uAxis">${labels.map(e => `<span>${esc(e.label)}</span>`).join('')}</div></div>`;
 }
 function dayEntries(rows, metric, since) {
   const by = groupRows(rows, x => dayOf(x.h)), out = [], [, f, show] = METRICS[metric];
@@ -971,9 +984,26 @@ function limitBars() {
   return html ? html + `<div class="uDim" style="margin-bottom:12px">Limits as of ${uAgo(L.at)}. They update while a session is running.</div>`
     : `<div class="uDim" style="margin-bottom:12px">Weekly and 5-hour limits aren't available yet. They appear if your status line saves them to ~/.claude/state/rate-limits.json.</div>`;
 }
+// The worker sums everything per range (usage.js summarize); this only draws it.
+const uTok = t => `${TOK(t.i)} in · ${TOK(t.o)} out · ${TOK(t.w)} cache write · ${TOK(t.r)} cache read`;
+function uReport(g) {
+  const t = g.tot, hh = h => String(h).padStart(2, '0') + ':00', last = ms => dayOf(ms).slice(5) + ' ' + hh(new Date(ms).getHours());
+  const tl = [[USD(t.c), 'Estimated cost', 'What these tokens would cost at API prices. Not what your plan charges you.'], [TOK(t.i), 'Input', 'New text sent to Claude.'], [TOK(t.o), 'Output', 'What Claude wrote back.'], [TOK(t.w), 'Cache write', 'Text stored in the cache the first time it is sent.'], [TOK(t.r), 'Cache read', 'Earlier conversation re-used from cache. Much cheaper than input.']]
+    .map(([v, l, tip]) => `<div class="uTile" title="${tip}"><b>${v}</b><span class="uDim">${l}</span></div>`).join('');
+  const days = g.days.map(d => ({ k: d.d, label: d.d.slice(5), v: d.c, read: `${d.d}: ${USD(d.c)} · ${TOK(allTok(d))} tokens (${TOK(d.i)} in, ${TOK(d.o)} out)` }));
+  const hours = g.hours.map(h => ({ k: String(h.h), label: hh(h.h), v: h.c, read: `${hh(h.h)}: ${USD(h.c)} · ${TOK(allTok(h))} tokens (${TOK(h.i)} in, ${TOK(h.o)} out)` }));
+  const n = US.all ? g.sessions.length : 25, shown = g.sessions.slice(0, n);
+  const row = s => `<div class="uTr" data-sid="${esc(s.s)}"><span class="t" title="${uTitle(s.s)}">${uTitle(s.s)}</span><span class="c">${USD(s.c)}</span><span class="m"><span><span class="lbl">in </span>${TOK(s.i)}</span><span><span class="lbl">out </span>${TOK(s.o)}</span><span><span class="lbl">cache </span>${TOK(s.w + s.r)}</span><span>${last(s.last)}</span></span></div>`;
+  return `<div class="uTiles5" id="uTot">${tl}</div>` +
+    `<h3 class="uH">By day</h3>` + uChart(days, 'Estimated cost per day. Hover a bar for details.') +
+    `<h3 class="uH">By hour of day</h3>` + uChart(hours, 'Estimated cost per hour of the day (your local time). Hover a bar for details.') +
+    `<h3 class="uH">By session</h3>` + (shown.length ? `<div class="uTbl" id="uSes"><div class="uTr hd"><span>Session</span><span class="c">$</span><span class="n">In</span><span class="n">Out</span><span class="n">Cache</span><span class="n">Last active</span></div>${shown.map(row).join('')}</div>` : '<div class="uDim">No sessions in this period.</div>') +
+    (g.sessions.length > 25 ? `<span class="lnk uMore" data-u="all">${US.all ? 'Show top 25' : `Show all ${g.sessions.length}`}</span>` : '') +
+    `<div class="uDim" style="margin-top:8px">Cache = write + read. Sub-agent transcripts count toward their parent session.</div>`;
+}
 function uBody() {
   const rows = uRows();
-  if (US.tab === 'overview') return limitBars() + rangePills() + tiles(totals(rows)) + uChart(dayEntries(rows, 'cost', US.range === 'all' ? 0 : sinceOf(US.range)), 'Estimated cost per day. Hover a bar for details.');
+  if (US.tab === 'overview') return US.data.summary ? limitBars() + rangePills() + uReport(US.data.summary[US.range]) : limitBars() + rangePills() + tiles(totals(rows)) + uChart(dayEntries(rows, 'cost', US.range === 'all' ? 0 : sinceOf(US.range)), 'Estimated cost per day. Hover a bar for details.');
   if (US.tab === 'sessions') {
     if (US.session) {
       const own = US.data.rows.filter(x => x.s === US.session), hs = own.map(x => x.h), byDay = own.length && Math.max(...hs) - Math.min(...hs) > 2 * 864e5, models = [...groupRows(own, x => x.m)].map(([m, r]) => [m, totals(r)]).sort((a, b) => b[1].c - a[1].c);
@@ -1017,7 +1047,7 @@ function uClick(el) {
   const a = el.dataset.u, v = el.dataset.v;
   if (a === 'tab') { US.tab = v; US.session = null; } else if (a === 'range') { US.range = v; US.pick = null; US.page = 0; } else if (a === 'gran') { US.gran = v; US.pick = null; }
   else if (a === 'metric') US.metric = v; else if (a === 'pick') US.pick = US.pick === v ? null : v; else if (a === 'session') { US.tab = 'sessions'; US.session = v; }
-  else if (a === 'back') US.session = null; else if (a === 'page') US.page = +v; else if (a === 'retry') { US.err = null; uLoad(); }
+  else if (a === 'all') US.all = !US.all; else if (a === 'back') US.session = null; else if (a === 'page') US.page = +v; else if (a === 'retry') { US.err = null; uLoad(); }
   uRender();
 }
 // Token badge, bottom right of every session on screen. Updates every 5 s; unchanged transcripts aren't re-read.
@@ -1056,7 +1086,7 @@ $('setPage').addEventListener('click', e => {
   if (e.target.id === 'advCfg') { $('set').hidden = true; return runCmd('/config'); }
   const s = e.target.closest('.sw'); if (!s) return; s.classList.toggle('on'); saveSetting(s.dataset.k, s.classList.contains('on'));
 });
-$('setPage').addEventListener('mouseover', e => { const c = e.target.closest('[data-read]'); if (c && $('uRead')) $('uRead').textContent = c.dataset.read; });
+$('setPage').addEventListener('mouseover', e => { const c = e.target.closest('[data-read]'), r = c && c.closest('.uCh') && c.closest('.uCh').querySelector('.uRead'); if (r) r.textContent = c.dataset.read; });
 $('setClose').onclick = () => $('set').hidden = true;
 $('set').addEventListener('click', e => { if (e.target.id === 'set') $('set').hidden = true; });
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('set').hidden) { $('set').hidden = true; e.stopPropagation(); } }, true);
